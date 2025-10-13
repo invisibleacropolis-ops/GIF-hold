@@ -1,0 +1,109 @@
+# GifVision User Manual
+
+Welcome to GifVision! This guide will walk you through everything you need to know to start creating amazing GIFs from your videos.
+
+## 1. Introduction
+> **System Requirement:** GifVision ships with FFmpegKit from `com.antonkarpenko:ffmpeg-kit-full-gpl:1.1.0` and will not function with any other FFmpeg distribution. Do not sideload or attempt to swap native binaries—Spectrum Pulse and Color Cycle depend on timeline-aware filters that are only bundled in this build.
+
+GifVision is a powerful and creative tool that transforms your videos into unique animated GIFs. With a wide array of effects, blending modes, and a unique layering system, you can unleash your creativity and produce truly stunning visual art.
+
+## 2. Getting Started: Your First GIF
+
+Creating a GIF is a simple process. Heres a quick guide to get you started:
+
+1.  **Upload a Video:** In **Layer 1**, click on "Browse Files" or drag and drop a video file into the upload area. You can also replace an existing clip at any time by using the **Change** action in the upload cardthis opens the same file picker so you can swap sources without leaving the workflow.
+2.  **Select a Clip:** Use the video preview player to find the part of the video you want to turn into a GIF. Use the **Clip Duration** slider in the **Adjustments** panel to trim your video.
+3.  **Generate:** Click the **Generate GIF** button in the **Preview (Layer 1 Source A)** card.
+
+That's it! Your first GIF will be generated and will appear in the preview area.
+
+## 3. The GifVision Interface
+
+GifVision's interface is designed to be powerful yet intuitive. It is divided into several key areas:
+
+### Layers and Streams
+
+GifVision uses a unique system of **Layers** and **Streams** to give you maximum creative control.
+
+*   **Layers:** Think of layers like transparent sheets on which you create your GIFs. You can work with up to two layers (Layer 1 and Layer 2). This allows you to create two different GIFs from two different (or the same) source videos and then blend them together.
+*   **Streams:** Each Layer has two **Streams**, **A** and **B**. This means for each video you upload, you can create two different versions of a GIF with different effects. You can then blend these two streams together.
+
+You can switch between Streams using the toggle buttons in the **Adjustments** panel.
+
+### MAIN PAGES (lAYER 1 and LAYER 2  each page is the same as the other)
+
+*   **Upload Card:** This is where you upload your source video for each layer. Each card provides a **Browse Files** button so you can pick clips however you prefer. If you already have a clip loaded, the card shows its filename alongside a **Change** button; selecting **Change** lets you pick a replacement file immediately.
+*   **Video Preview:** Once a video is uploaded, you can play it here and USE TRANSPORT CONTROLS to scrub through to find the perfect segment for your GIF.
+*   **Adjustments Panel:** This is the heart of GifVision's creative power. Here you can tweak a wide variety of settings for the selected Layer and Stream.
+*   **Preview Card:** This card shows the generated GIF for a specific stream (e.g., Layer 1, Stream A). From here you can regenerate, save, or share your GIF.
+*   **Blend Preview Card:** This card is for blending the A and B streams of a single layer. You can choose a blend mode and opacity to combine them.
+
+BLEND PAGE
+*   **Master Blend:** This is the final step. Here you can blend the results of Layer 1 and Layer 2 together to create a final, multi-layered masterpiece.
+
+
+
+ON ALL PAGES:
+*FFmpeg Logs:** For advanced users or for troubleshooting, this section shows the output from the FFmpeg video processing engine.*   *
+
+## 4. The Creative Toolkit: Effects and Adjustments
+
+The **Adjustments** panel is where the magic happens. Here's a breakdown of the available effects:
+
+### Quality & Size
+
+*   **Resolution:** Controls the width of your GIF. A lower percentage will result in a smaller file size. GifVision automatically starts very long or high-FPS clips at a reduced percentage and posts warnings in the log when projected file sizes might exceed common sharing limits.
+*   **Max Colors:** Sets the number of colors in the GIF's palette. Fewer colors mean a smaller file size but can result in color banding.
+*   **Framerate:** The number of frames per second (FPS). Higher FPS results in smoother animation but a larger file size.
+
+### Text Overlay
+
+*   **Text:** Add text that will be displayed on your GIF.
+*   **Font Size & Color:** Customize the appearance of your text overlay.
+
+### Color & Tone
+
+*   **Brightness, Contrast, Saturation:** Standard color correction tools to fine-tune the look of your GIF.
+*   **Hue:** Shifts the colors of the entire image.
+*   **Sepia Tone:** Adds a classic, brownish tint to your GIF.
+*   **Color Balance:** Adjust the levels of Red, Green, and Blue in your GIF for precise color grading.
+
+### Experimental & Artistic Filters
+
+This is where you can get really creative!
+
+*   **Spectrum Pulse:** Animates RGB channels with a subtle sine wave pulse.
+*   **Color Cycle Speed:** Makes the colors in your GIF cycle over time.
+*   **Motion Trails:** Creates a "ghosting" or "echo" effect.
+*   **Sharpen:** Enhances the details in your GIF.
+*   **Edge Detect:** Creates a stylized, cartoon-like outline effect.
+*   **Negate Colors:** Inverts the colors of the GIF.
+*   **Flip Horizontal/Vertical:** Flips the image on its axis.
+
+## 5. Blending: Combining Your Creations
+
+GifVision's blending capabilities allow you to combine your GIFs in creative ways.
+
+### Layer Blending
+
+1.  Generate a GIF for **Stream A** and **Stream B** of a layer.
+2.  Go to the **Blend Preview** card for that layer.
+3.  Select a **Blend Mode**. Each mode combines the pixels of the two GIFs in a different mathematical way, creating a wide range of visual effects.
+4.  Adjust the **Opacity** to control the transparency of the top layer (Stream B).
+5.  Click **Generate Blended GIF**.
+
+### Master Blending
+
+The **Master Blend** card appears as soon as at least one layer has footage uploaded, but the controls only become active after both Layer 1 and Layer 2 have finished rendering their individual blended GIFs. At that point you can:
+
+1.  Open the **Blend Mode** dropdown to choose how the two layer outputs are composited together. The options mirror the layer-level blending choices so you can stay consistent or experiment with new combinations.
+2.  Drag the **Opacity** slider (0.001.00) to balance how much of Layer 2 shows through over Layer 1. The numeric readout next to the label updates in real time so you can dial in precise values before generating the final mix.
+3.  Press **Generate Master Blend** to send the request to the backend. While processing, the card locks to prevent duplicate submissions and the progress bar reports rendering status until the finished GIF preview appears.
+
+## 6. Saving and Sharing
+
+Once the master blended GIF is ready, you have two export options:
+
+*   **Save:** Tap **Save** to write the GIF to your devices **Downloads** directory. A toast confirms whether the transfer succeeded or failed so you never have to wonder where the file went.
+
+*   **Share:** The **Share** button is fully active. Before you send the GIF, use the **Social share setup** panel to add a caption, paste hashtags (separated by spaces or commas), and pick the looping metadata that best matches your intent (Auto, Loop forever, Play once, or Bounce). GifVision instantly previews how the GIF and text will render on Instagram, TikTok, and X—including caption truncation, tag limits, and loop guidance—so you can tailor the message for each network. Tapping **Share** asks the Compose UI to request a share from the `GifProcessingCoordinator`, which bundles the GIF, applies your caption/hashtag selections, stamps the chosen loop metadata, and packages the GIF through its `prepareShare` helper. The coordinator automatically converts internal file paths into a secure `content://` URI (via the apps FileProvider) and keeps existing `content://` or `data:` URIs intact, while also granting the temporary read permissions required by receiving apps. As soon as the GIF is ready, Androids system share chooser appears so you can pick any compatible messaging, social, or cloud app. If your device has nothing installed that understands GIFs, or if an error occurs while preparing the share, the app immediately shows a toast describing the issue.

@@ -35,6 +35,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -708,6 +709,7 @@ private fun QualitySection(
  * Collects overlay copy and typography controls. The section enforces font size and hex color
  * validation so FFmpeg's `drawtext` filter receives clean inputs.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TextOverlaySection(
     stream: StreamSelection,

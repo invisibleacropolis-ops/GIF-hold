@@ -327,7 +327,10 @@ class FfmpegKitGifProcessingCoordinator(
 
         // Log the complete command for debugging
         val commandString = command.arguments.joinToString(" ") { it.quoteIfNeeded() }
-        android.util.Log.d("FFmpegKit", "Executing FFmpeg command: $commandString")
+        android.util.Log.d("FFmpegKit", "============ EXECUTING FFMPEG COMMAND ============")
+        android.util.Log.d("FFmpegKit", "Job ID: ${command.jobId}")
+        android.util.Log.d("FFmpegKit", "Command: $commandString")
+        android.util.Log.d("FFmpegKit", "==================================================")
         logs += "Command: $commandString"
 
         try {
@@ -336,25 +339,35 @@ class FfmpegKitGifProcessingCoordinator(
                 executeAsync(command, statisticsCallback, logCallback)
             }
             
+            android.util.Log.d("FFmpegKit", "Session completed with returnCode: ${session.returnCode}")
+            
             if (ReturnCode.isCancel(session.returnCode)) {
                 throw CancellationException("FFmpeg cancelled")
             }
             if (!ReturnCode.isSuccess(session.returnCode)) {
                 val message = buildString {
                     append("FFmpeg failed with code ${session.returnCode}. ")
-                    session.failStackTrace?.let { append(it) }
+                    session.failStackTrace?.let { append("Stack trace: $it\n") }
                     // Add last few log lines for context
                     val lastLogs = logs.takeLast(10).joinToString("\n")
                     append("\nRecent logs:\n$lastLogs")
                 }
+                android.util.Log.e("FFmpegKit", "============ FFMPEG ERROR ============")
                 android.util.Log.e("FFmpegKit", message)
+                android.util.Log.e("FFmpegKit", "======================================")
                 throw IllegalStateException(message)
             }
+            
+            android.util.Log.d("FFmpegKit", "FFmpeg command completed successfully")
         } catch (e: TimeoutCancellationException) {
             val message = "FFmpeg command timed out after 5 minutes - check if input files are valid"
             logs += message
             android.util.Log.e("FFmpegKit", message)
             throw IllegalStateException(message)
+        } catch (e: Exception) {
+            // Log the full exception for debugging
+            android.util.Log.e("FFmpegKit", "Exception during FFmpeg execution", e)
+            throw e
         }
     }
 
@@ -410,6 +423,10 @@ class FfmpegKitGifProcessingCoordinator(
                 android.util.Log.d("FFmpegKit", "Found ${videoFilters.size} video filters")
                 android.util.Log.d("FFmpegKit", "Video filters: ${videoFilters.take(20).joinToString(", ")}")
                 
+                // Specifically check for drawtext
+                val hasDrawtext = output.contains(" drawtext ")
+                android.util.Log.d("FFmpegKit", "drawtext filter available: $hasDrawtext")
+                
             } catch (e: Exception) {
                 android.util.Log.e("FFmpegKit", "Error querying filters", e)
             }
@@ -426,6 +443,51 @@ class FfmpegKitGifProcessingCoordinator(
             } catch (e: Exception) {
                 android.util.Log.e("FFmpegKit", "Error checking filter availability", e)
                 false
+            }
+        }
+        
+        /**
+         * Verifies that the drawtext filter and font support are properly configured.
+         * Should be called during app initialization to catch configuration issues early.
+         */
+        fun verifyDrawtextSupport(): Boolean {
+            android.util.Log.d("FFmpegKit", "Verifying drawtext filter support...")
+            
+            // Check if drawtext filter is available
+            if (!isFilterAvailable("drawtext")) {
+                android.util.Log.e("FFmpegKit", "ERROR: drawtext filter not available in FFmpegKit build!")
+                android.util.Log.e("FFmpegKit", "The FFmpeg build must be compiled with --enable-libfreetype")
+                return false
+            }
+            
+            // Check if we can find a usable font
+            val fontPath = findAvailableFont()
+            if (fontPath == null) {
+                android.util.Log.e("FFmpegKit", "ERROR: No TrueType fonts found on device!")
+                android.util.Log.e("FFmpegKit", "Searched in /system/fonts/ for .ttf files")
+                return false
+            }
+            
+            android.util.Log.i("FFmpegKit", "✓ drawtext filter is available")
+            android.util.Log.i("FFmpegKit", "✓ Font file found: $fontPath")
+            
+            // Test a simple drawtext command to verify it works
+            try {
+                android.util.Log.d("FFmpegKit", "Testing drawtext filter with a simple command...")
+                val testCommand = "-f lavfi -i color=c=black:s=100x100:d=1 -vf \"drawtext=fontfile=$fontPath:text='TEST':fontsize=20:fontcolor=white\" -frames:v 1 -f null -"
+                val session = FFmpegKit.execute(testCommand)
+                
+                if (ReturnCode.isSuccess(session.returnCode)) {
+                    android.util.Log.i("FFmpegKit", "✓ drawtext filter test PASSED")
+                    return true
+                } else {
+                    android.util.Log.e("FFmpegKit", "✗ drawtext filter test FAILED")
+                    android.util.Log.e("FFmpegKit", "Test output: ${session.output}")
+                    return false
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("FFmpegKit", "✗ drawtext filter test threw exception", e)
+                return false
             }
         }
 
@@ -448,6 +510,54 @@ class FfmpegKitGifProcessingCoordinator(
             val fileName = request.suggestedOutputPath?.let { File(it).name }
                 ?: "master_blend_${request.blendMode.name.lowercase(Locale.ROOT)}.gif"
             return prepareOutputFile(context, fileName)
+        }
+
+        /**
+         * Finds the first available TrueType font on the Android system.
+         * Returns the absolute path to the font file, or null if no fonts are found.
+         */
+        fun findAvailableFont(): String? {
+            // List of common Android system fonts in priority order
+            val fontCandidates = listOf(
+                "/system/fonts/Roboto-Regular.ttf",      // Modern Android (5.0+)
+                "/system/fonts/DroidSans.ttf",           // Older Android
+                "/system/fonts/NotoSans-Regular.ttf",    // Alternative
+                "/system/fonts/Roboto-Light.ttf",        // Roboto variant
+                "/system/fonts/DroidSans-Bold.ttf",      // Bold variant fallback
+                "/system/fonts/NotoSerif-Regular.ttf"    // Serif fallback
+            )
+            
+            for (fontPath in fontCandidates) {
+                val fontFile = File(fontPath)
+                if (fontFile.exists() && fontFile.canRead()) {
+                    android.util.Log.d("FFmpegKit", "Found available font: $fontPath")
+                    return fontPath
+                }
+            }
+            
+            // If no system fonts found, try to list what's actually in /system/fonts/
+            try {
+                val systemFontsDir = File("/system/fonts")
+                if (systemFontsDir.exists() && systemFontsDir.isDirectory) {
+                    val availableFonts = systemFontsDir.listFiles { file ->
+                        file.isFile && file.name.endsWith(".ttf", ignoreCase = true)
+                    }
+                    
+                    if (!availableFonts.isNullOrEmpty()) {
+                        val firstFont = availableFonts.first().absolutePath
+                        android.util.Log.d("FFmpegKit", "Using first available .ttf font: $firstFont")
+                        return firstFont
+                    } else {
+                        android.util.Log.w("FFmpegKit", "No .ttf fonts found in /system/fonts/")
+                    }
+                } else {
+                    android.util.Log.w("FFmpegKit", "/system/fonts/ directory not accessible")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("FFmpegKit", "Error scanning for fonts", e)
+            }
+            
+            return null
         }
 
         private fun prepareOutputFile(context: Context, fileName: String): File {
@@ -912,11 +1022,36 @@ private fun buildEdgeFilter(settings: AdjustmentSettings): String? {
 /** Renders the text overlay if the user supplied copy. */
 private fun buildDrawTextFilter(settings: AdjustmentSettings): String? {
     if (settings.textOverlay.isBlank()) return null
-    val color = settings.fontColorHex.toFfmpegColor()
-    val size = settings.fontSizeSp.coerceAtLeast(8).toString()
+    
+    // Find an available font on the device
+    val fontPath = FfmpegKitGifProcessingCoordinator.findAvailableFont()
+    if (fontPath == null) {
+        android.util.Log.e("FFmpegKit", "No valid font file found for drawtext filter")
+        return null
+    }
+    
     val escapedText = settings.textOverlay.escapeFfmpegText()
-    // Explicitly convert size to string and specify Android system font
-    return "drawtext=text='$escapedText':fontcolor=$color:fontsize=$size:x=(w-text_w)/2:y=h-(text_h*1.5):fontfile=/system/fonts/Roboto-Regular.ttf"
+    // New range: minimum 50 (was 8), maximum 216 (was 72)
+    val fontSize = settings.fontSizeSp.coerceIn(50, 216)
+    
+    // Simple color - just "white" or "black"
+    val fontColor = when (settings.fontColorHex.lowercase()) {
+        "black", "#000000", "#ff000000" -> "black"
+        else -> "white"  // Default to white
+    }
+    
+    android.util.Log.d("FFmpegKit", "Building drawtext filter:")
+    android.util.Log.d("FFmpegKit", "  - Font: $fontPath")
+    android.util.Log.d("FFmpegKit", "  - Text: '$escapedText'")
+    android.util.Log.d("FFmpegKit", "  - Font size: $fontSize")
+    android.util.Log.d("FFmpegKit", "  - Font color: $fontColor")
+    
+    // Build filter with size and color
+    val filter = "drawtext=fontfile=$fontPath:text='$escapedText':fontsize=$fontSize:fontcolor=$fontColor:x=10:y=10"
+    
+    android.util.Log.d("FFmpegKit", "  - Filter: $filter")
+    
+    return filter
 }
 
 private suspend fun buildBlendCommand(

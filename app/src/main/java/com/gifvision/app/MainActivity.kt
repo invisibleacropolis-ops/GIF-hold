@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import com.gifvision.app.media.FfmpegKitGifProcessingCoordinator
 import com.gifvision.app.ui.GifVisionApp
 import com.gifvision.app.ui.state.GifVisionViewModel
 import com.gifvision.app.ui.theme.GifVisionTheme
@@ -26,6 +27,14 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Verify FFmpeg drawtext filter support on app startup
+        // This will log detailed diagnostics and catch configuration issues early
+        val drawtextSupported = FfmpegKitGifProcessingCoordinator.verifyDrawtextSupport()
+        if (!drawtextSupported) {
+            android.util.Log.e("MainActivity", "WARNING: Text overlay feature may not work correctly!")
+        }
+        
         enableEdgeToEdge()
         setContent {
             val windowSizeClass = calculateWindowSizeClass(activity = this)

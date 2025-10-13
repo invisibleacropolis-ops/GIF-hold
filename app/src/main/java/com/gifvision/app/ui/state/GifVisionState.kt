@@ -163,8 +163,8 @@ data class AdjustmentSettings(
     val frameRate: Float = 15f,
     val clipDurationSeconds: Float = 3f,
     val textOverlay: String = "",
-    val fontSizeSp: Int = 18,
-    val fontColorHex: String = "#FFFFFFFF",
+    val fontSizeSp: Int = 54,  // Better default size (was 18)
+    val fontColorHex: String = "white",  // Simple "white" or "black"
     val brightness: Float = 0f,
     val contrast: Float = 1f,
     val saturation: Float = 1f,

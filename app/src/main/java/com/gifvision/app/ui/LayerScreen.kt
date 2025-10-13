@@ -741,31 +741,55 @@ private fun TextOverlaySection(
         tooltip = "Sets overlay text size in scalable pixels.",
         value = adjustments.fontSizeSp.toFloat(),
         onValueChange = { newValue ->
-            onAdjustmentsChange(stream) { it.copy(fontSizeSp = newValue.roundToInt().coerceIn(8, 72)) }
+            onAdjustmentsChange(stream) { it.copy(fontSizeSp = newValue.roundToInt().coerceIn(50, 216)) }
         },
-        valueRange = 8f..72f,
+        valueRange = 50f..216f,
         steps = 64,
         valueFormatter = { "${it.roundToInt()}sp" },
         supportingText = "Large captions may overlap imagery on smaller exports.",
         validation = fontSizeValidation
     )
-    val fontColor = adjustments.fontColorHex
-    val isFontColorValid = fontColor.matches(Regex("^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"))
-    OutlinedTextField(
-        modifier = Modifier.fillMaxWidth(),
-        value = adjustments.fontColorHex,
-        onValueChange = { newValue -> onAdjustmentsChange(stream) { it.copy(fontColorHex = newValue) } },
-        label = { Text("Font Color (Hex)") },
-        supportingText = {
-            val hint = "Use #RRGGBB or #AARRGGBB formats."
-            Text(
-                text = if (isFontColorValid) hint else "Invalid color. $hint",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (isFontColorValid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+    
+    // Font Color Dropdown
+    var expandedFontColor by remember { mutableStateOf(false) }
+    
+    ExposedDropdownMenuBox(
+        expanded = expandedFontColor,
+        onExpandedChange = { expandedFontColor = it },
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+    ) {
+        OutlinedTextField(
+            value = adjustments.fontColorHex.replaceFirstChar { it.uppercase() },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Font Color") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFontColor)
+            },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expandedFontColor,
+            onDismissRequest = { expandedFontColor = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("White") },
+                onClick = {
+                    onAdjustmentsChange(stream) { it.copy(fontColorHex = "white") }
+                    expandedFontColor = false
+                }
             )
-        },
-        isError = !isFontColorValid
-    )
+            DropdownMenuItem(
+                text = { Text("Black") },
+                onClick = {
+                    onAdjustmentsChange(stream) { it.copy(fontColorHex = "black") }
+                    expandedFontColor = false
+                }
+            )
+        }
+    }
 }
 
 /**

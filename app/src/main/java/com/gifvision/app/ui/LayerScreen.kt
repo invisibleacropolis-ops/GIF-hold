@@ -733,11 +733,6 @@ private fun TextOverlaySection(
             )
         }
     )
-    val fontSizeValidation = when {
-        adjustments.fontSizeSp < 8 -> AdjustmentValidation(true, "Font size cannot be smaller than 8sp.")
-        adjustments.fontSizeSp > 72 -> AdjustmentValidation(true, "Font size cannot exceed 72sp.")
-        else -> null
-    }
     AdjustmentSlider(
         label = "Font Size",
         tooltip = "Sets overlay text size in scalable pixels.",
@@ -747,9 +742,7 @@ private fun TextOverlaySection(
         },
         valueRange = 50f..216f,
         steps = 64,
-        valueFormatter = { "${it.roundToInt()}sp" },
-        supportingText = "Large captions may overlap imagery on smaller exports.",
-        validation = fontSizeValidation
+        valueFormatter = null
     )
     
     // Font Color Dropdown

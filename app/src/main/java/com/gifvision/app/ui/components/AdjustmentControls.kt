@@ -47,7 +47,7 @@ fun AdjustmentSlider(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int = 0,
     enabled: Boolean = true,
-    valueFormatter: (Float) -> String = { "%.2f".format(it) },
+    valueFormatter: ((Float) -> String)? = { "%.2f".format(it) },
     supportingText: String? = null,
     validation: AdjustmentValidation? = null,
     modifier: Modifier = Modifier
@@ -88,11 +88,13 @@ fun AdjustmentSlider(
                     modifier = Modifier.weight(1f)
                 )
             }
-            Text(
-                text = valueFormatter(value),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.End
-            )
+            if (valueFormatter != null) {
+                Text(
+                    text = valueFormatter(value),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.End
+                )
+            }
         }
         Slider(
             modifier = Modifier.fillMaxWidth(),

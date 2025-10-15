@@ -867,23 +867,28 @@ private fun buildBlendFilterGraph(
         stages += "[1:v]setpts=PTS-STARTPTS[secondary_trimmed]"
     }
     
+    var primaryPrepared = "primary_trimmed"
+    var secondaryPrepared = "secondary_trimmed"
+
     // Scale to match dimensions if needed
     if (matchDimensions && targetWidth > 0 && targetHeight > 0) {
         if (scaleSecondary) {
             // Scale secondary to match primary
-            stages += "[primary_trimmed]copy[base]"
-            stages += "[secondary_trimmed]scale=${targetWidth}:${targetHeight}:flags=lanczos[overlay]"
+            val scaledOverlay = "secondary_scaled"
+            stages += "[$secondaryPrepared]scale=${targetWidth}:${targetHeight}:flags=lanczos[$scaledOverlay]"
+            secondaryPrepared = scaledOverlay
         } else {
             // Scale primary to match secondary
-            stages += "[primary_trimmed]scale=${targetWidth}:${targetHeight}:flags=lanczos[base]"
-            stages += "[secondary_trimmed]copy[overlay]"
+            val scaledBase = "primary_scaled"
+            stages += "[$primaryPrepared]scale=${targetWidth}:${targetHeight}:flags=lanczos[$scaledBase]"
+            primaryPrepared = scaledBase
         }
-    } else {
-        // No dimension matching needed
-        stages += "[primary_trimmed]copy[base]"
-        stages += "[secondary_trimmed]copy[overlay]"
     }
-    
+
+    // Normalise both sources to RGBA so every blend mode receives full color data
+    stages += "[$primaryPrepared]format=rgba[base]"
+    stages += "[$secondaryPrepared]format=rgba[overlay]"
+
     // Blend the two streams
     stages += "[base][overlay]blend=all_mode=${blendMode.ffmpegKeyword()}:all_opacity=${opacity.coerceIn(0f, 1f).toFfmpegString()}[blended]"
     
@@ -1082,24 +1087,7 @@ private fun Float.toFfmpegString(precision: Int = 2): String = String.format(Loc
 
 private fun Float.isApproximately(target: Float, epsilon: Float = 0.0001f): Boolean = abs(this - target) < epsilon
 
-private fun GifVisionBlendMode.ffmpegKeyword(): String = when (this) {
-    GifVisionBlendMode.Normal -> "normal"
-    GifVisionBlendMode.Multiply -> "multiply"
-    GifVisionBlendMode.Screen -> "screen"
-    GifVisionBlendMode.Overlay -> "overlay"
-    GifVisionBlendMode.Darken -> "darken"
-    GifVisionBlendMode.Lighten -> "lighten"
-    GifVisionBlendMode.ColorDodge -> "dodge"
-    GifVisionBlendMode.ColorBurn -> "burn"
-    GifVisionBlendMode.HardLight -> "hardlight"
-    GifVisionBlendMode.SoftLight -> "softlight"
-    GifVisionBlendMode.Difference -> "difference"
-    GifVisionBlendMode.Exclusion -> "exclusion"
-    GifVisionBlendMode.Hue -> "hue"
-    GifVisionBlendMode.Saturation -> "saturation"
-    GifVisionBlendMode.Color -> "color"
-    GifVisionBlendMode.Luminosity -> "luminosity"
-}
+private fun GifVisionBlendMode.ffmpegKeyword(): String = ffmpegKeyword
 
 private fun String.quoteIfNeeded(): String {
     if (isEmpty()) return this

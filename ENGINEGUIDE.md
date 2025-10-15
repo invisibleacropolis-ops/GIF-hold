@@ -1,137 +1,351 @@
 # GifVision Engineering Guide
 
-## 1. Project Overview
-GifVision is an Android-only Jetpack Compose application that follows the workflow described in `USERMANUAL.txt`. The current implementation delivers a production-ready skeleton that wires together the navigation shell, state containers, UI scaffolding, and dependency graph required to implement timeline-aware GIF rendering with FFmpegKit. Media playback, capture, and rendering hooks are intentionally stubbed with loggers so engineers can plug in domain logic without disrupting the Compose surface.
+## Table of Contents
+- [1. Introduction](#1-introduction)
+- [2. Getting Started](#2-getting-started)
+  - [2.1. Platform Requirements](#21-platform-requirements)
+  - [2.2. Repository Layout](#22-repository-layout)
+  - [2.3. Build & Verification Commands](#23-build--verification-commands)
+- [3. Application Architecture](#3-application-architecture)
+  - [3.1. High-Level Flow](#31-high-level-flow)
+  - [3.2. Entry Point](#32-entry-point)
+  - [3.3. State Container & Business Logic](#33-state-container--business-logic)
+  - [3.4. Navigation & Routing](#34-navigation--routing)
+- [4. UI Surface Reference](#4-ui-surface-reference)
+  - [4.1. Theme & Accessibility](#41-theme--accessibility)
+  - [4.2. Scaffold Shell (`GifVisionApp`)](#42-scaffold-shell-gifvisionapp)
+  - [4.3. Layer Screen (`LayerScreen`)](#43-layer-screen-layerscreen)
+  - [4.4. Master Blend Screen (`MasterBlendScreen`)](#44-master-blend-screen-masterblendscreen)
+  - [4.5. Reusable UI Components](#45-reusable-ui-components)
+- [5. Media & Storage Pipeline](#5-media--storage-pipeline)
+  - [5.1. Media Repository Abstractions](#51-media-repository-abstractions)
+  - [5.2. FFmpeg Coordination](#52-ffmpeg-coordination)
+  - [5.3. Share Workflow](#53-share-workflow)
+- [6. Domain Model & Validation](#6-domain-model--validation)
+  - [6.1. State Models](#61-state-models)
+  - [6.2. Validation Strategy](#62-validation-strategy)
+  - [6.3. Logging & Diagnostics](#63-logging--diagnostics)
+- [7. Resource & Manifest Configuration](#7-resource--manifest-configuration)
+- [8. Development Workflows](#8-development-workflows)
+  - [8.1. Testing](#81-testing)
+  - [8.2. Previewing UI](#82-previewing-ui)
+  - [8.3. Adding New Features Safely](#83-adding-new-features-safely)
+- [9. File-by-File Reference Appendix](#9-file-by-file-reference-appendix)
+- [10. Future Enhancements & Open Questions](#10-future-enhancements--open-questions)
 
-## 2. Module Layout
+---
+
+## 1. Introduction
+GifVision is a Jetpack Compose Android application focused on orchestrating complex GIF creation workflows. The current codebase provides a production-ready skeleton that wires together:
+
+* An adaptive Compose UI with a navigation shell and high-contrast accessibility toggle.
+* A comprehensive state container that mirrors the concepts in the user manual (streams, layers, master blend, share prep).
+* A media pipeline capable of simulating FFmpeg jobs in preview builds and executing native FFmpegKit commands in production.
+* Repository abstractions for scoped storage persistence and Android share intents.
+
+This document serves as a field manual for engineers extending the project. It aligns with the repository as checked in and is intended to be exhaustive—treat it as the authoritative reference for architecture, data flow, and developer workflows.
+
+## 2. Getting Started
+
+### 2.1. Platform Requirements
+The project is built with the Android Gradle Plugin and Jetpack Compose. Ensure the following prerequisites are installed locally:
+
+| Dependency | Required Version | Notes |
+| --- | --- | --- |
+| Android Studio | Ladybug or newer | Compose tooling requires a modern IDE. |
+| Android SDK | API 36 (Android 15) | `compileSdk`/`targetSdk` are set to 36 in [`app/build.gradle.kts`](app/build.gradle.kts). |
+| Java | JDK 17 | FFmpegKit and Media3 ship Java 17 bytecode. Gradle toolchains are aligned. |
+| Gradle | Wrapper-provided (8.x) | Use `./gradlew` to avoid mismatched versions. |
+
+An Android SDK must be configured through `local.properties` (`sdk.dir=/path/to/sdk`) or environment variables (`ANDROID_HOME`, `ANDROID_SDK_ROOT`) before running assemble tasks.
+
+### 2.2. Repository Layout
+The project is a single-module Android application. Key paths:
+
 ```
-app/
-  └── src/main/java/com/gifvision/app/
-      ├── media/                        # Service + repository contracts
-      │   ├── GifProcessingCoordinator.kt
-      │   ├── MediaRepository.kt
-      │   └── ShareRepository.kt
-      ├── MainActivity.kt                # Entry point + Compose setup
-      ├── navigation/                    # Route constants
-      ├── ui/                            # Screen-level composables
-      │   ├── GifVisionApp.kt            # Scaffold + NavHost + bottom bar
-      │   ├── LayerScreen.kt             # Layer 1 / Layer 2 UI
-      │   └── MasterBlendScreen.kt       # Final blend controls
-      └── ui/state/                      # State containers + ViewModel
-          ├── GifVisionState.kt
-          └── GifVisionViewModel.kt
+.
+├── app/
+│   ├── build.gradle.kts          # Module build configuration & dependencies
+│   ├── proguard-rules.pro        # Release build ProGuard configuration
+│   └── src/main/
+│       ├── AndroidManifest.xml   # Permissions & component declarations
+│       ├── java/com/gifvision/app/
+│       │   ├── MainActivity.kt                   # Activity entry point
+│       │   ├── navigation/GifVisionDestination.kt # Route definitions
+│       │   ├── media/                            # Media + share contracts
+│       │   │   ├── GifProcessingCoordinator.kt
+│       │   │   ├── MediaRepository.kt
+│       │   │   └── ShareRepository.kt
+│       │   └── ui/
+│       │       ├── GifVisionApp.kt               # Scaffold & NavHost
+│       │       ├── LayerScreen.kt                # Layer management UI
+│       │       ├── MasterBlendScreen.kt          # Master blend UI
+│       │       ├── components/                   # Reusable Compose widgets
+│       │       │   ├── AdjustmentControls.kt
+│       │       │   ├── BlendControls.kt
+│       │       │   └── FfmpegLogPanel.kt
+│       │       ├── state/                        # Immutable state models + VM
+│       │       │   ├── GifVisionState.kt
+│       │       │   └── GifVisionViewModel.kt
+│       │       └── theme/                        # Material 3 theming primitives
+│       │           ├── Color.kt
+│       │           ├── Theme.kt
+│       │           └── Type.kt
+│       └── res/                 # Material colors, strings, icons, FileProvider XML
+├── ENGINEGUIDE.md               # This engineering manual
+├── USERMANUAL.txt               # Customer-facing workflow description
+├── build.gradle.kts             # Root Gradle setup
+├── settings.gradle.kts          # Gradle module declaration
+└── gradle/                      # Wrapper files
 ```
-The `ui/theme` package houses Material theming primitives. Resource overrides and manifest capabilities sit in `app/src/main/res` and `app/src/main/AndroidManifest.xml` respectively.
 
-## 3. Build & Tooling Requirements
-* **Android SDK** – Gradle requires `sdk.dir` in `local.properties` or `ANDROID_HOME` to locate the Android SDK during `assembleDebug`. The CI skeleton assumes API 36 (Android 15) per `compileSdk`/`targetSdk`.
-* **Java 17** – FFmpegKit and Media3 demand Java 17 bytecode. `compileOptions`/`kotlinOptions` are already aligned to Java 17.
-* **Gradle 8.13 / AGP 8.1.3** – Managed through the Gradle wrapper and `libs.versions.toml`.
+### 2.3. Build & Verification Commands
+The standard Gradle lifecycle commands apply:
 
-Running the build:
 ```bash
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug       # Compiles the app and packages a debug APK
+./gradlew :app:lint                # Static analysis (requires configured SDK)
+./gradlew :app:testDebugUnitTest   # Runs JVM unit tests when present
 ```
-> In the hosted environment the command fails without an Android SDK; install the SDK or provide a local.properties file when running locally.
 
-## 4. Dependency Map
-Key libraries surfaced in `app/build.gradle.kts`:
+> **Hosted CI note:** In containerized environments without the Android SDK, `assembleDebug` and lint tasks fail. Install the SDK or attach a preconfigured `local.properties` when running locally.
 
-| Area | Libraries |
+## 3. Application Architecture
+
+### 3.1. High-Level Flow
+1. **MainActivity** boots, verifies FFmpeg drawtext availability (`FfmpegKitGifProcessingCoordinator.verifyDrawtextSupport()`), and sets the Compose content tree.
+2. **GifVisionViewModel** exposes `StateFlow` state describing layers, streams, blend configuration, share prep, and accessibility toggles.
+3. **GifVisionApp** renders a Material 3 scaffold with a top bar, bottom navigation, and `NavHost` for the two layer routes plus the master blend route.
+4. Screen composables (`LayerScreen`, `MasterBlendScreen`) render responsive layouts, dispatch mutations back to the view-model, and consume validation/logging signals.
+5. Media operations and share requests pass through repository abstractions, enabling replacement during previews/tests.
+
+### 3.2. Entry Point
+[`MainActivity.kt`](app/src/main/java/com/gifvision/app/MainActivity.kt) is a `ComponentActivity` that:
+
+* Instantiates `GifVisionViewModel` via the provided factory.
+* Runs `verifyDrawtextSupport()` once on startup for early diagnostics.
+* Enables edge-to-edge rendering and captures the `WindowSizeClass` for responsive UI.
+* Collects `uiState` and `uiMessages` from the view-model using `collectAsStateWithLifecycle()` and `LaunchedEffect`, respectively. Toasts surface all `UiMessage`s.
+* Passes hoisted callbacks (import clip, adjustments, blend requests, share requests, toggles) down into `GifVisionApp`.
+
+### 3.3. State Container & Business Logic
+[`GifVisionViewModel`](app/src/main/java/com/gifvision/app/ui/state/GifVisionViewModel.kt) centralizes domain logic:
+
+* Holds a `MutableStateFlow<GifVisionUiState>` representing the entire session.
+* Maintains validation maps for stream renders, layer blends, and master blend readiness.
+* Imports clips by:
+  * Harvesting metadata via `MediaMetadataRetriever` and `ContentResolver`.
+  * Registering the clip with `MediaRepository` (default `ScopedStorageMediaRepository`).
+  * Capturing thumbnails and resetting stream trims/playback state.
+  * Recording warnings/errors via `appendLog`.
+* Updates adjustments, trims, playback, blend modes, opacities, and share metadata via targeted helper methods.
+* Launches FFmpeg jobs (`requestStreamRender`, `requestLayerBlend`, `requestMasterBlend`) using the injected `GifProcessingCoordinator`. Each method toggles `isGenerating` flags, collects progress/completion events, persists outputs through `MediaRepository`, and appends structured logs.
+* Saves outputs to `Downloads` with `mediaRepository.exportToDownloads()`.
+* Shares the master blend by assembling a `ShareRequest` and delegating to `ShareRepository` (default `AndroidShareRepository`). Success/failure messages funnel through `uiMessages`.
+* Provides derived flows (`layerUiState`) combining base state and validation maps for screen-level consumption.
+* Exposes high-contrast toggles and ensures share previews stay in sync with caption/hashtag changes.
+
+The view-model depends on:
+
+* `ScopedStorageMediaRepository` for persistence with JSON sidecar metadata.
+* `FfmpegKitGifProcessingCoordinator` for real FFmpeg execution (with `LoggingGifProcessingCoordinator` available for previews/tests).
+* `AndroidShareRepository` for launching share intents.
+
+### 3.4. Navigation & Routing
+Routing lives in [`GifVisionDestination.kt`](app/src/main/java/com/gifvision/app/navigation/GifVisionDestination.kt):
+
+* `Layer` destination defines `route = "layer/{layerId}"` with integer argument `layerId` and a helper `createRoute(layerId: Int)`.
+* `MasterBlend` destination exposes a simple `"master"` route.
+* `GifVisionApp` builds bottom navigation items from the current `uiState.layers`. The active layer index triggers navigation updates to keep the back stack aligned with state changes.
+
+## 4. UI Surface Reference
+
+### 4.1. Theme & Accessibility
+`ui/theme` hosts Material 3 theming primitives:
+
+* [`Theme.kt`](app/src/main/java/com/gifvision/app/ui/theme/Theme.kt) defines `GifVisionTheme(highContrast: Boolean, content: @Composable () -> Unit)` which swaps between default and high-contrast color palettes.
+* [`Color.kt`](app/src/main/java/com/gifvision/app/ui/theme/Color.kt) provides baseline palettes plus boosted-contrast variants.
+* [`Type.kt`](app/src/main/java/com/gifvision/app/ui/theme/Type.kt) holds typography overrides.
+
+The top bar exposes both an icon button and a switch for toggling high contrast, with accessibility semantics describing the current state. `GifVisionViewModel` persists the preference in `uiState.isHighContrastEnabled`.
+
+### 4.2. Scaffold Shell (`GifVisionApp`)
+[`GifVisionApp.kt`](app/src/main/java/com/gifvision/app/ui/GifVisionApp.kt) sets up the application shell:
+
+* **Top App Bar:** `CenterAlignedTopAppBar` labeled "GifVision" with high-contrast toggle controls.
+* **Bottom Navigation:** Dynamically generated `NavigationBarItem`s for Layer 1, Layer 2, and Master Blend. Selection logic derives from the current `NavBackStackEntry`.
+* **Navigation Host:** `NavHost` with:
+  * `layer/{layerId}` → `LayerScreen`
+  * `master` → `MasterBlendScreen`
+* **Window Size Responsiveness:** Calculates `isLargeScreen` to inform child composables. Large screens present split layouts; compact screens stack cards vertically.
+* **Lifecycle Hooks:** `LaunchedEffect(uiState.activeLayerIndex)` keeps navigation synchronized when the active layer changes via the state toggle.
+
+### 4.3. Layer Screen (`LayerScreen`)
+[`LayerScreen.kt`](app/src/main/java/com/gifvision/app/ui/LayerScreen.kt) manages a single layer composed of two streams:
+
+* **Upload Card:** Launches `ActivityResultContracts.OpenDocument()` to import video clips, requesting persistable URI permissions and logging success/failure.
+* **Video Preview Card:** Embeds an ExoPlayer-powered `PlayerView` via `AndroidView`. Provides play/pause, seek bar, and `RangeSlider` trim controls bound to `Stream.trimStartMs`/`trimEndMs`.
+* **Adjustments Card:** Uses tabbed content to surface adjustment sliders/switches for Quality & Size, Text Overlay, Color & Tone, and Experimental filters. Each control delegates to `onAdjustmentsChange` closures, relying on `AdjustmentSlider`/`AdjustmentSwitch` for consistent UI.
+* **Stream Preview Cards:** Render GIF previews using Coil (`rememberAsyncImagePainter`) and expose buttons for regenerating the stream, saving to downloads, and displaying render progress.
+* **Blend Card:** Combines `BlendModeDropdown`, `BlendOpacitySlider`, `GenerateBlendButton`, and `BlendPreviewThumbnail` to manage per-layer blending between Stream A and B. Enablement ties to validation results and whether stream GIFs exist.
+* **FFmpeg Log Panel:** `FfmpegLogPanel` lists structured log entries with severity tinting, auto-scroll, and copy affordances.
+* **Responsive Layout:** On wide displays, upload/preview/adjustment cards appear in one column while stream previews, blend controls, and logs stack in another.
+
+### 4.4. Master Blend Screen (`MasterBlendScreen`)
+[`MasterBlendScreen.kt`](app/src/main/java/com/gifvision/app/ui/MasterBlendScreen.kt) orchestrates the final composition:
+
+* Highlights aggregated readiness for the master blend (requires both layer blends).
+* Provides blend mode dropdown, opacity slider, and generate button mirroring layer-level controls.
+* Shows master preview via Coil with progress indicators while generating.
+* Exposes action buttons for "Save" (downloads) and "Share" (invokes share repository) with proper enablement gating.
+* Surfaces share setup card containing caption, hashtag input, loop metadata selection (`GifLoopMetadata` options), and platform previews (Instagram, TikTok, X) showing character counts, overflow warnings, and loop guidance.
+* Maintains a dedicated FFmpeg log panel for master-level operations.
+
+### 4.5. Reusable UI Components
+The `ui/components` package offers shared building blocks:
+
+* [`AdjustmentControls.kt`](app/src/main/java/com/gifvision/app/ui/components/AdjustmentControls.kt): `AdjustmentSlider`, `AdjustmentSwitch`, and `AdjustmentValidation` provide consistent styling, tooltip support, and validation messaging across adjustment tabs.
+* [`BlendControls.kt`](app/src/main/java/com/gifvision/app/ui/components/BlendControls.kt): Hosts `BlendModeDropdown`, `BlendOpacitySlider`, `GenerateBlendButton`, and `BlendPreviewThumbnail`. Widgets enforce enablement rules and surface progress/log states.
+* [`FfmpegLogPanel.kt`](app/src/main/java/com/gifvision/app/ui/components/FfmpegLogPanel.kt): Renders scrollable log entries with severity badges, copy-to-clipboard actions, and optional title/empty state messaging.
+
+Reuse these components when adding new controls to minimize styling drift and ensure accessibility support remains consistent.
+
+## 5. Media & Storage Pipeline
+
+### 5.1. Media Repository Abstractions
+[`MediaRepository.kt`](app/src/main/java/com/gifvision/app/media/MediaRepository.kt) defines the persistence layer:
+
+* **Interface:** Declares methods to register source clips, store stream outputs, store layer blends, store master blends, fetch source clips, and export files to the public downloads directory.
+* **Data Classes:**
+  * `MediaAsset` describes stored artifacts with IDs, optional layer/stream ownership, canonical paths, and timestamps.
+  * `MediaSource` captures registered clip metadata.
+* **Implementations:**
+  * `InMemoryMediaRepository` – test/preview double storing assets in memory.
+  * `ScopedStorageMediaRepository` – production implementation writing files beneath `filesDir/media_store` with subfolders for sources, streams, and blends. Persists JSON sidecars for quick rehydration and synchronizes access with a `Mutex`. Provides `exportToDownloads` handling API level differences (`MediaStore` for API ≥ 29, legacy paths otherwise).
+
+The view-model defaults to `ScopedStorageMediaRepository` but can swap to `InMemoryMediaRepository` via dependency injection in previews or tests.
+
+### 5.2. FFmpeg Coordination
+[`GifProcessingCoordinator.kt`](app/src/main/java/com/gifvision/app/media/GifProcessingCoordinator.kt) wraps FFmpeg execution:
+
+* **Interface Methods:** `renderStream`, `blendLayer`, `mergeMaster` returning `Flow<GifProcessingEvent>` for reactive progress updates.
+* **Job Requests:**
+  * `StreamProcessingRequest` bundles layer, stream, source path, adjustments, trims, and optional output path hints.
+  * `LayerBlendRequest` captures stream GIF paths, blend mode, opacity, and output suggestions.
+  * `MasterBlendRequest` merges layer outputs with blend parameters.
+* **Events:** `GifProcessingEvent` sealed class with `Started`, `Progress`, `Completed`, `Failed`, and `Cancelled` states.
+* **Implementations:**
+  * `LoggingGifProcessingCoordinator` – deterministic simulator emitting progress/log strings without invoking FFmpeg.
+  * `FfmpegKitGifProcessingCoordinator` – production executor interfacing with FFmpegKit, translating `AdjustmentSettings` into filter graphs, monitoring `StatisticsCallback`, persisting outputs through `MediaRepository`, and piping logs back through the notification adapter. It provides `verifyDrawtextSupport()` used at startup to confirm `drawtext` availability.
+* **Notification Adapter:** `GifProcessingNotificationAdapter` allows integrating Android foreground service notifications. `GifProcessingNotificationAdapter.Noop` is used by default but can be replaced with a concrete adapter when background execution policies require it.
+
+### 5.3. Share Workflow
+[`ShareRepository.kt`](app/src/main/java/com/gifvision/app/media/ShareRepository.kt) abstracts Android share intent plumbing:
+
+* `ShareRequest` includes output path, display name, caption, hashtags, and loop metadata.
+* `ShareResult` surfaces success or failure.
+* `AndroidShareRepository` transforms filesystem paths into `content://` URIs via `FileProvider`, composes share text from caption/hashtags/loop metadata, grants URI permissions to all resolved targets, and launches a chooser intent.
+* `LoggingShareRepository` is available for tests and previews where actual intents are undesirable.
+
+`GifVisionViewModel.shareMasterOutput()` orchestrates the share flow, preventing duplicate launches (`isPreparingShare`) and relaying completion status through `UiMessage`s.
+
+## 6. Domain Model & Validation
+
+### 6.1. State Models
+[`GifVisionState.kt`](app/src/main/java/com/gifvision/app/ui/state/GifVisionState.kt) defines immutable data classes for the entire domain:
+
+* Enumerations for `StreamSelection`, `GifVisionBlendMode` (FFmpeg keywords), `GifLoopMetadata`, `LogSeverity`, and `SharePlatform`.
+* Value objects:
+  * `LogEntry` with severity and timestamps for diagnostics.
+  * `PlatformPreview` capturing per-destination caption counts, hashtag stats, and loop guidance.
+  * `ShareSetupState` storing caption, hashtags, loop metadata, previews, and `isPreparingShare` flag.
+  * `AdjustmentSettings` enumerating every slider/switch bound in the UI (resolution, max colors, frame rate, text overlay, color balance, experimental effects, flips, etc.).
+  * `Stream` describing stream-specific adjustments, previews, playback/trimming state, and render status.
+  * `BlendConfig` representing per-layer blend mode, opacity, output path, and `isGenerating` flag.
+  * `Layer` combining source clip metadata, two streams, blend state, active stream selection, and FFmpeg logs.
+  * `SourceClip` storing imported media metadata and thumbnail.
+  * `MasterBlendConfig` containing master blend parameters, enablement gates, logs, and share setup.
+  * `GifVisionUiState` bundling layers, master blend, active layer index, and high-contrast status.
+
+### 6.2. Validation Strategy
+Validation occurs inside the view-model:
+
+* Stream validation ensures a source clip is present, frame rate stays within supported bounds, clip duration is positive, and palette size remains 2–256 colors.
+* Layer blend validation requires both stream GIFs and constrains opacity to 0.0–1.0.
+* Master blend validation checks layer blends before enabling the master generate button.
+* Validation results are cached per-layer/per-stream to avoid recomputation. The UI inspects validation states to enable/disable controls and surface messages near adjustments via `AdjustmentValidation`.
+
+### 6.3. Logging & Diagnostics
+Logging is first-class:
+
+* The view-model emits `UiMessage`s for toast notifications (warnings, errors, successes).
+* `appendLog(layerId, message, severity)` attaches `LogEntry`s to the appropriate layer or master list. Logs are truncated to avoid unbounded growth.
+* `FfmpegLogPanel` displays log entries with severity colors and copy support, enabling engineers to extract FFmpeg command output easily.
+* Startup diagnostics check FFmpeg `drawtext` support and log an error if unavailable.
+
+## 7. Resource & Manifest Configuration
+
+* [`AndroidManifest.xml`](app/src/main/AndroidManifest.xml) declares required permissions for internet, camera, audio, scoped storage, foreground services, notifications, and file provider integration. It also configures optional camera hardware for ChromeOS compatibility.
+* [`res/xml/file_paths.xml`](app/src/main/res/xml/file_paths.xml) defines the `FileProvider` root used by the share workflow.
+* `values/strings.xml`, `values/colors.xml`, and `values/themes.xml` host app name, brand colors, and the Material 3 theme bridge.
+* Launcher icons live in `mipmap-*/` directories with vector/drawable definitions.
+
+## 8. Development Workflows
+
+### 8.1. Testing
+Current test coverage is minimal. Suggested practices:
+
+* Add unit tests under `app/src/test` targeting `GifVisionViewModel` to validate adjustments, validation states, and share preview calculations.
+* Integration/UI tests can live under `app/src/androidTest` using Compose UI testing APIs once an instrumentation runner is configured.
+* Run `./gradlew :app:assembleDebug` to ensure the Compose tree compiles—this is the closest proxy to instrumentation tests when the Android SDK is available.
+
+> **Environment note:** Without an installed Android SDK the assemble task will fail. Configure the SDK locally for full verification.
+
+### 8.2. Previewing UI
+Compose previews are not currently defined, but engineers can:
+
+* Create preview functions referencing `GifVisionApp` with fake `GifVisionUiState` instances.
+* Swap `GifVisionViewModel` dependencies for `LoggingGifProcessingCoordinator` and `InMemoryMediaRepository` when wiring previews to avoid native FFmpeg execution.
+
+### 8.3. Adding New Features Safely
+* Respect existing abstractions—route UI mutations through `GifVisionViewModel` so state remains single-sourced.
+* When adding adjustments, extend `AdjustmentSettings` and augment FFmpeg graph construction in `FfmpegKitGifProcessingCoordinator`.
+* For new share destinations, update `SharePlatform` enum and extend preview logic in `buildPlatformPreview`.
+* Preserve validation gating to maintain UX guarantees (disable buttons until prerequisites are satisfied).
+* Follow `MediaRepository` contracts when introducing alternative persistence strategies (e.g., cloud sync).
+
+## 9. File-by-File Reference Appendix
+| File | Description |
 | --- | --- |
-| Media rendering | `com.antonkarpenko:ffmpeg-kit-full-gpl:1.1.0` |
-| Playback | `androidx.media3:media3-exoplayer`, `androidx.media3:media3-ui`, `androidx.media3:media3-common` |
-| Capture | `androidx.camera:camera-core`, `camera-camera2`, `camera-lifecycle`, `camera-view` |
-| UI | Jetpack Compose (Material3, Navigation), Accompanist Permissions, Coil |
-| Background work | `androidx.work:work-runtime-ktx` |
-| State helpers | `androidx.lifecycle:lifecycle-runtime-compose`, `androidx.lifecycle:lifecycle-viewmodel-compose`, `org.jetbrains.kotlinx:kotlinx-coroutines-android` |
+| `app/src/main/java/com/gifvision/app/MainActivity.kt` | Activity entry point: sets Compose content, gathers window size, collects state/toasts, and forwards callbacks. |
+| `app/src/main/java/com/gifvision/app/navigation/GifVisionDestination.kt` | Route definitions for layer/master destinations with helper builders. |
+| `app/src/main/java/com/gifvision/app/ui/GifVisionApp.kt` | Scaffold, top app bar, bottom navigation, and Compose `NavHost`. |
+| `app/src/main/java/com/gifvision/app/ui/LayerScreen.kt` | Comprehensive layer UI with import, playback, adjustments, render controls, and logs. |
+| `app/src/main/java/com/gifvision/app/ui/MasterBlendScreen.kt` | Final blend workflow including share setup and diagnostics. |
+| `app/src/main/java/com/gifvision/app/ui/components/AdjustmentControls.kt` | Shared adjustment slider/switch components with tooltip & validation support. |
+| `app/src/main/java/com/gifvision/app/ui/components/BlendControls.kt` | Dropdown/slider/button helpers for blend cards plus preview thumbnail rendering. |
+| `app/src/main/java/com/gifvision/app/ui/components/FfmpegLogPanel.kt` | Scrollable FFmpeg log surface with copy affordances. |
+| `app/src/main/java/com/gifvision/app/ui/state/GifVisionState.kt` | Immutable domain/state models for streams, layers, master blend, share setup, and logs. |
+| `app/src/main/java/com/gifvision/app/ui/state/GifVisionViewModel.kt` | Business logic & state mutations, media import, FFmpeg orchestration, share handling, and validation. |
+| `app/src/main/java/com/gifvision/app/ui/theme/Color.kt` | Color palettes supporting default and high-contrast themes. |
+| `app/src/main/java/com/gifvision/app/ui/theme/Theme.kt` | Material 3 theme wrapper with high-contrast support. |
+| `app/src/main/java/com/gifvision/app/ui/theme/Type.kt` | Typography definitions for Material 3 surfaces. |
+| `app/src/main/java/com/gifvision/app/media/GifProcessingCoordinator.kt` | FFmpeg orchestration contracts, request/event models, and simulator/production implementations. |
+| `app/src/main/java/com/gifvision/app/media/MediaRepository.kt` | Persistence abstractions with in-memory and scoped-storage implementations plus export helpers. |
+| `app/src/main/java/com/gifvision/app/media/ShareRepository.kt` | Share intent abstraction and Android implementation using `FileProvider`. |
+| `app/src/main/AndroidManifest.xml` | Permission declarations, activity registration, and FileProvider setup. |
+| `app/src/main/res/xml/file_paths.xml` | FileProvider path configuration. |
+| `app/build.gradle.kts` | Module-level Gradle configuration, Compose enablement, dependency declarations, ABI splits, and packaging rules. |
 
-ABI splits and packaging options are configured to handle FFmpegKit’s native binaries.
+## 10. Future Enhancements & Open Questions
+1. **Notification Adapter:** Provide a concrete implementation for Android 13+ notification channels to surface FFmpeg progress outside the app.
+2. **WorkManager Integration:** Investigate migrating long-running FFmpeg jobs into foreground `WorkRequest`s for improved resiliency.
+3. **Metadata Rehydration:** Expand `ScopedStorageMediaRepository` to eagerly load JSON sidecars on startup so sessions resume with cached outputs/thumbnails.
+4. **Testing Infrastructure:** Introduce unit tests for `GifVisionViewModel` and integration tests covering navigation and blend flows.
+5. **Compose Previews:** Author preview functions for key screens to accelerate UI development and regression testing.
+6. **Localization:** Externalize user-facing strings for translation readiness.
+7. **Analytics Hooks:** If telemetry is required, instrument state transitions and share actions through a dedicated analytics interface to avoid polluting the view-model.
 
-## 5. UI Architecture
-* `MainActivity` creates `GifVisionViewModel`, collects `GifVisionUiState`, and renders `GifVisionApp` within `GifVisionTheme`.
-* `GifVisionApp` sets up a `Scaffold` with a centered top bar, bottom navigation (Layer 1, Layer 2, Master), and a Compose Navigation host. Layer destinations pass their `layerId` argument to `LayerScreen`; the master route renders `MasterBlendScreen`.
-* `LayerScreen` mirrors the manual’s layout while now wiring the upload card into Android’s document picker, surfacing imported metadata/thumbnail caches, embedding an ExoPlayer preview with transport + trim controls, and retaining the adjustments, per-stream preview, blend card, and FFmpeg log viewer. On tablets and foldables the screen automatically pivots into a responsive two-column canvas so preview/blend/log cards live side-by-side with adjustments.
-* `MasterBlendScreen` exposes blend selection, opacity control, save/share placeholders, and aggregate FFmpeg logs. The screen shares the same adaptive layout strategy as `LayerScreen`, keeping controls and diagnostics visible simultaneously on larger widths.
-* Both blend destinations render their diagnostics through the shared `FfmpegLogPanel` component. The panel stays pinned to each screen, auto-scrolls as new entries arrive, highlights warnings/errors, and provides copy/share affordances for escalations.
-* Shared controls (`AdjustmentSlider`, `AdjustmentSwitch`, `SectionHeader`) reduce boilerplate across sections.
+---
 
-## 6. State Management
-* `GifVisionState.kt` now exposes the canonical domain/state models used across the stack. The key classes mirror the terminology in the user manual:
-  * `AdjustmentSettings` – single source for every slider/switch/text field (resolution, color palette, frame rate, text overlay, grading, experimental filters, and flips). Defaults reflect a safe starting point for renders.
-  * `Stream` – wraps a `StreamSelection` slot with its `AdjustmentSettings`, media references (`sourcePreviewPath`, `generatedGifPath`), cached preview thumbnail, trim bounds, playback cursor, play/pause state, and render bookkeeping (`isGenerating`, `lastRenderTimestamp`).
-  * `BlendConfig` – tracks the Stream A/B blend mode, opacity, output path, and pending job flag.
-  * `Layer` – groups two `Stream` instances, the `BlendConfig`, source metadata (including cached thumbnails/duration/size), and FFmpeg logs per layer.
-  * `MasterBlendConfig` – mirrors the master blend card (mode, opacity, enablement gate, output path, and logs).
-  * `GifVisionUiState` – aggregates the full session, including a computed `activeLayer` pointer.
-  * `SourceClip` – immutable snapshot of the imported media (URI, display name, mime type, duration, dimensions, byte size, last-modified timestamp, and thumbnail) shared across UI and pipeline layers so we never re-query the `ContentResolver` unnecessarily.
-* `GifVisionViewModel` now operates on multiple `StateFlow` surfaces: the base `uiState`, derived `layerUiState(layerId)` snapshots, and validation feeds (`streamValidation`, `layerBlendValidation`, `masterBlendValidation`). The derived flows power Compose previews without manual fan-out.
-* Validation is centralized in the view-model. Stream renders require a source clip, positive frame rate/duration, and a palette within 2–256 colors. Layer blends require both stream GIFs and an opacity between 0–1. The master blend checks that both layers are blended and that the final opacity remains within bounds.
-* Rendering entry points include `requestStreamRender`, `requestLayerBlend`, and `requestMasterBlend`. Each method short-circuits on validation errors, toggles the `isGenerating` flags, listens to `GifProcessingCoordinator` events, persists outputs through `MediaRepository`, and appends FFmpeg-style log entries back into state.
-* `shareMasterOutput` forwards the final GIF to the `ShareRepository`, enabling Compose buttons to trigger a share flow without touching Android intents.
-* Log appenders keep the last 200 entries per layer/master to avoid unbounded growth and now stamp entries as `LogEntry` objects carrying severity + timestamps. UI surfaces tint warnings/errors appropriately and surface toast notifications so accessibility services announce issues immediately.
-* The default constructor wires in `ScopedStorageMediaRepository`, `FfmpegKitGifProcessingCoordinator`, and a `GifProcessingNotificationAdapter.Noop` instance so background work runs inside the sandbox without extra wiring. Swap these dependencies in previews/tests to disable native encodes.
-
-
-## 7. Manifest & Storage Setup
-* Permissions for camera, audio, foreground services, scoped storage (Android 13+ and legacy fallbacks), notifications, and internet are declared.
-* `FileProvider` is configured via `@xml/file_paths` to expose rendered GIFs securely for the share workflow.
-* Theme resources renamed to `Theme.GifVision`; app label now reads “GifVision”.
-* `GifVisionTheme` accepts a `highContrast` override and exposes alternate color schemes optimized for TalkBack users. The top app bar wires a high-contrast toggle (icon + switch) into the view-model so accessibility services can enable it programmatically. Use `windowSizeClass` in Compose entry points when introducing new layouts so the adaptive patterns remain consistent.
-
-## 8. Media Pipeline Hooks
-* `LayerScreen` now owns the full media import + preview flow: it launches the `OpenDocument` picker, captures persistable URI permissions, forwards selections to the view-model, renders imported metadata (resolution/duration/size/mime type), and displays cached thumbnails when present. The ExoPlayer surface is embedded via `AndroidView`, with play/pause/reset buttons, a scrubber tied to `Stream.playbackPositionMs`, and a trim `RangeSlider` that updates `Stream.trimStartMs`/`trimEndMs`.
-* Stream previews use Coil to display generated GIF URIs. Completed renders and blends are persisted by `ScopedStorageMediaRepository`, so `generatedGifPath`, `blendedGifPath`, and the master output automatically resolve to sandboxed files that can be re-used across sessions.
-* FFmpeg output from the new coordinator streams straight into each layer’s log list as the encode progresses. The `FfmpegLogPanel` already exposes scroll-to-bottom behavior plus copy/share shortcuts, so additional surfacing (snackbars/toasts) is only necessary for bespoke UX.
-* The per-layer blend card is composed of reusable helpers (`BlendModeDropdown`, `BlendOpacitySlider`, `GenerateBlendButton`, `BlendPreviewThumbnail`). Each helper enforces the validation rules from the manual—controls stay disabled until both stream GIFs exist, sliders quantize to two decimal places across the 0.00–1.00 range, and progress feedback surfaces through a `LinearProgressIndicator` while FFmpeg runs. Reuse these primitives when expanding the blend UI so behavior stays consistent.
-* `MasterBlendScreen` mirrors the same contract. Its dropdown/slider/button are locked behind `MasterBlendConfig.isEnabled`, the slider shares the 0.00–1.00 quantization, and a progress bar plus status copy render whenever `isGenerating` is true. Save/share buttons remain disabled until a master GIF path is available.
-
-## 9. Testing Guidance
-* `./gradlew :app:assembleDebug` verifies the Gradle graph and Compose compilation. Requires a configured Android SDK locally.
-* Add unit tests for `GifVisionViewModel` in `app/src/test` to lock down state transitions (e.g., stream switching, opacity ranges) once logic matures.
-* UI tests can target composable semantics via `androidx.compose.ui.test.junit4` once instrumentation harness is connected.
-
-## 10. Media Service Interfaces
-* `media/MediaRepository.kt` defines the persistence abstraction for source clips and rendered GIFs. Production builds now use `ScopedStorageMediaRepository`, which writes every stream render, layer blend, and master blend into `filesDir/media_store` while emitting a JSON sidecar containing identifiers, timestamps, and ownership metadata for quick rehydration. `InMemoryMediaRepository` remains available for tests.
-* `media/GifProcessingCoordinator.kt` introduces the FFmpeg orchestration contract. `FfmpegKitGifProcessingCoordinator` builds palette-aware filter graphs from `AdjustmentSettings`, executes them through FFmpegKit on a dedicated IO dispatcher, forwards stdout/stderr into the log panel, and drives foreground notifications through the pluggable `GifProcessingNotificationAdapter`. The legacy `LoggingGifProcessingCoordinator` still exists for previews.
-* `media/ShareRepository.kt` encapsulates share intent plumbing. `AndroidShareRepository` now owns the FileProvider URI conversion and chooser dispatch, while `LoggingShareRepository` remains available for previews/tests.
-* The view-model only depends on these abstractions, keeping background execution strategies and Android intent handling in replaceable modules.
-* Layer and master blend jobs now feed existing output paths back into `LayerBlendRequest.suggestedOutputPath` and `MasterBlendRequest.suggestedOutputPath`. The coordinator reuses file names inside the sandboxed render directory so repeat blends overwrite cached GIFs instead of fragmenting storage. Keep this behavior intact when adding new blend entry points so cache hits remain deterministic.
-
-## 11. Future Work & TODOs
-* Evaluate migrating the coroutine-based coordinator into WorkManager once long-running encodes with network constraints are required.
-* Expand the notification adapter with concrete implementations for Android 13+ notification channels and pause/resume actions.
-* Enhance metadata rehydration with thumbnail caching so the repository can repopulate previews without re-rendering.
-* Add social share setup UI and connect to `GifProcessingCoordinator` once available.
-* Expand theme typography and possibly add custom fonts to emphasize the brand aesthetic.
-
-## 13. FFmpeg Pipeline Breakdown
-* Stream renders use a single `-filter_complex` graph: `[0:v]setpts` → `fps` → resolution scaling → color grading → experimental effects (Spectrum Pulse, Color Cycle, Motion Trails, Sharpen, Edge Detect, flips) → optional `drawtext`, before splitting into palette generation (`palettegen`) and palette application (`paletteuse`). The spectrum, color-cycle, and motion filters rely on timeline expressions (`sin(2*PI*t)`, `H+deg*t`, `enable='gte(t,0)'`) exposed by the required FFmpegKit build.
-* Blends reuse the same palette workflow but swap the pre-processing stage with FFmpeg’s `blend` filter (`all_mode` derived from `GifVisionBlendMode`, `all_opacity` wired to the UI slider). Both per-layer and master blends push their outputs through palette regeneration to avoid ghost palettes.
-* `FfmpegKitGifProcessingCoordinator` estimates progress using FFmpegKit statistics, emits structured `GifProcessingEvent` updates over Kotlin flows, and persists logs so the Compose log panel mirrors native stdout/stderr in near real time.
-
-## 12. Adjustments Panel UX Contracts
-* `LayerScreen` hosts a tabbed adjustments surface (`AdjustmentTabContent`) that mirrors the manual’s groupings (Quality & Size, Text Overlay, Color & Tone, Experimental Filters). Tabs are stateful per stream via `mutableStateMapOf` keyed on `StreamSelection`, so toggling between Stream A/B restores the last viewed tab and slider positions for each stream instance.
-* Each control binds directly to `AdjustmentSettings`, with slider/switch helpers enhanced to expose tooltips, supporting copy, and validation feedback (`AdjustmentValidation`). Error states tint slider tracks and surface messaging; warnings (e.g., >48 fps) render in the secondary color to differentiate from hard failures.
-* `AdjustmentControls.kt` now owns the tooltip/validation plumbing. Compose’s `PlainTooltipBox` anchors an info glyph beside every labeled control; leverage the `tooltip` parameter whenever adding new adjustments so copy automatically flows through the shared scaffolding.
-* Text inputs include inline helpers—font color hex codes validate against `#RRGGBB`/`#AARRGGBB` and apply the `isError` flag on the `OutlinedTextField`. When adding additional free-form inputs, mirror this pattern so validation is executed in real time before dispatching state mutations.
-* The `QualitySection`, `TextOverlaySection`, `ColorSection`, and `ExperimentalSection` no longer emit static headers. They assume the tab title provides context, so new controls should add spacing manually (`Spacer(height = 12.dp)`) before the first widget to maintain visual rhythm within each tab.
-* `AdjustmentSlider` accepts an `enabled` flag and stays responsible for formatting value text. Use the new parameter when gating controls behind render prerequisites (e.g., blend sliders) so Compose keeps a single appearance contract.
-
-## 14. Blend Workflow Reference
-* `MainActivity` wires `GifVisionApp` with explicit callbacks for `requestLayerBlend` and `requestMasterBlend`. These flows flip the `isGenerating` flags, surface progress logs, and refresh enablement on completion.
-* `GifVisionApp` keeps navigation aware of blend readiness. Layer routes forward `onGenerateBlend` into `LayerScreen`, while the master route pipes `onGenerateMasterBlend` to `MasterBlendScreen`.
-* `LayerScreen`’s blend card disables user interaction until both stream GIFs exist, shows readiness messaging, and exposes preview/progress affordances. When extending the card, respect the existing enablement guard so we never dispatch a blend against missing media.
-* `MasterBlendScreen` mirrors the layer experience and unlocks only after both layers report blended GIFs. Any master-level extension should check `MasterBlendConfig.isEnabled` before issuing renders.
-* `GifVisionViewModel.requestLayerBlend` and `.requestMasterBlend` now pass cached output paths into their FFmpeg requests to keep filesystem churn low. The coordinator still executes asynchronously on its dedicated scope and relays completion back into state before enabling the next blend step.
-* Oversized clips trigger normalization inside `importSourceClip`: duration/frame-rate defaults are clamped, resolution is stepped down to 60%, and the view model logs high-severity warnings whenever the imported asset could exceed social upload limits.
-* All FFmpeg jobs emit explicit `Cancelled` events. The view-model clears `isGenerating` flags, posts warning toasts, and keeps the UI in sync when background execution is revoked or the activity leaves the foreground.
-
-For any questions, start at `MainActivity.kt` to trace the data flow, then inspect the state layer for mutation patterns.
-
-## 15. Save & Share Enhancements
-* Master preview now uses Coil's GIF decoder pipeline (ImageDecoder/GifDecoder) and surfaces loading/error states directly in `MasterBlendScreen`.
-* The CTA row exposes "Generate/Regenerate", "Save", and "Share" actions. Save writes to public Downloads via `MediaStore` on the IO dispatcher, while Share defers to `AndroidShareRepository` for FileProvider conversion + chooser dispatch and disables the button while preparing.
-* `GifVisionViewModel` manages a `ShareSetupState` that tracks caption copy, parsed hashtags, loop metadata, and live previews for Instagram/TikTok/X. Mutation helpers recompute previews and sanitise tags (duplicate removal, alphanumeric enforcement).
-* `ShareSetupCard` renders the social setup UI with caption + hashtag inputs, loop metadata chips, and destination-specific preview cards that highlight character and hashtag limits. The previews update instantly as the view-model state mutates.
-* Toast feedback is centralised through `GifVisionViewModel.UiMessage` and consumed in `MainActivity`, ensuring save/share success/failure notices flow through a single Compose-side collector.
+This guide should be updated whenever new features land or architecture decisions evolve. Treat it as a living document that mirrors the actual codebase.

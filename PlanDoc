@@ -1,0 +1,55 @@
+# GifVision Modularity & Consolidation Plan
+
+## 1. Purpose
+This plan documents opportunities to universalize and consolidate GifVision's UI and operational code without altering existing functionality. The intent is to reduce accidental complexity, ease onboarding, and keep the FFmpeg workflow stable while the product evolves.
+
+## 2. Current State Assessment
+
+### 2.1 UI Layer
+* `GifVisionApp.kt` owns the entire scaffold, navigation wiring, and accessibility controls. Its responsibilities are clear, but the file mixes layout logic with window size policy decisions.
+* `LayerScreen.kt` exceeds a thousand lines and interleaves composable declarations, state adapters, ExoPlayer management, and tooltip copy. While the screen is functionally cohesive, the size makes it difficult to reuse or test subflows.
+* `MasterBlendScreen.kt` shares several patterns (blend controls, log panel usage, preview cards) with the layer screen but duplicates parameter mapping and enablement conditions.
+* Shared widgets (`AdjustmentControls`, `BlendControls`, `FfmpegLogPanel`) encapsulate styling well, yet higher-order compositions (upload card, stream preview, share setup) are still inlined in the screen files.
+
+### 2.2 Operations & State
+* `GifVisionViewModel.kt` orchestrates every workflow: metadata extraction, validation, FFmpeg scheduling, persistence, sharing, high-contrast toggles, and toast messages. The file is dense, with helper methods, validation data classes, and coroutine flows intermixed.
+* Validation logic for streams, layer blends, and master blends is embedded in the view-model. UI surfaces access validation indirectly through `layerUiState`, but there is no standalone validator module.
+* `MediaRepository` and `ShareRepository` abstractions are clean; however, configuration (e.g., dispatcher selection, notification adapter wiring) is still done in the view-model factory, limiting reuse in previews/tests.
+* FFmpeg orchestration (`GifProcessingCoordinator`) already separates logging from execution but the production implementation and simulator live in the same file, contributing to file size and navigation friction.
+
+## 3. Consolidation & Universalization Recommendations
+
+### 3.1 Introduce Feature Modules Inside `ui/`
+1. **Layer Feature Package:** Move upload, video preview, adjustments, stream preview, and blend card composables into dedicated files under `ui/layer/`. Provide a `LayerScreen` shell that assembles these smaller components. This keeps business wiring intact while making each section individually maintainable.
+2. **Master Feature Package:** Extract share setup card, preview card, and action rows into `ui/master/` components. Align naming with their layer counterparts to encourage reuse (e.g., share preview could be shared with layer-level experiments later).
+3. **Window Size Policy Helper:** Create a `UiLayoutConfig` helper that computes `isWideLayout` and related breakpoints so `GifVisionApp` only consumes a simple configuration object. This also allows injecting custom policies for foldables if needed.
+
+### 3.2 Refactor ViewModel Responsibilities Without Changing Behavior
+1. **Split Into Coordinators:** Introduce internal classes or files such as `ClipImporter`, `RenderScheduler`, and `ShareCoordinator`, each encapsulating the current helper methods. Keep them package-private so the API to UI remains the same, but `GifVisionViewModel` delegates to them. This reduces the monolith without affecting consumers.
+2. **Validation Utilities:** Extract stream/layer/master validation into pure functions in `ui/state/validation/`. This allows reusing validation rules in unit tests and other layers while keeping logic synchronized.
+3. **Event Dispatch Surface:** Wrap toast messaging (`UiMessage`) in a small `MessageCenter` helper. The view-model continues to expose the same `SharedFlow`, but message creation and deduplication rules can live outside the main class.
+4. **Dependency Injection Entry Point:** Provide a `GifVisionDependencies` object that holds instances of `MediaRepository`, `GifProcessingCoordinator`, `ShareRepository`, and `GifProcessingNotificationAdapter`. The existing factory can build a default set, but previews/tests can supply alternatives without editing the view-model file.
+
+### 3.3 Normalize Reusable Components
+1. **Blend Controls:** Ensure `BlendModeDropdown`, `BlendOpacitySlider`, and `GenerateBlendButton` are consumed by both layer and master screens through a shared wrapper composable. This eliminates duplicated enablement checks and progress indicators.
+2. **Log Panel:** Offer a helper like `rememberLogPanelState` to centralize scroll/auto-copy behavior. The current component already handles rendering; adding a state holder improves future extensibility.
+3. **Preview Cards:** Define a generic `GifPreviewCard` that accepts title, asset path, progress state, and action callbacks. Layer stream previews and master blend preview can then share styling while injecting their own semantics.
+
+### 3.4 Strengthen Configuration Universality
+1. **Centralize Constants:** Move duplicated strings (e.g., log messages, tooltip descriptions) into a constants file or string resources to prevent divergence across features.
+2. **Create a Render Job Registry:** Encapsulate job ID construction in a utility so stream, layer, and master job identifiers follow a single contract. This prevents typos when new jobs are added.
+3. **Expose Layout Metrics:** Provide a `LayoutMetrics` data class derived from `WindowSizeClass` to drive padding, spacing, and column counts. Both layer and master screens can consume the same object, producing a unified responsive design system.
+
+## 4. Implementation Strategy
+1. **Phase 1 – File Extraction (No Logic Changes):** Move existing composable blocks and helper functions into new files/packages while keeping signatures identical. Update imports accordingly. Verify Compose previews (once added) or manual builds to ensure parity.
+2. **Phase 2 – Helper Abstractions:** Introduce lightweight coordinator/utility classes as described, updating the view-model to delegate. Maintain public API surface to avoid UI churn.
+3. **Phase 3 – Shared Component Adoption:** Replace duplicated UI snippets with the new reusable components. Confirm that enablement and validation logic still passes through existing parameters.
+4. **Phase 4 – Documentation & Tests:** Update `ENGINEGUIDE.md` (this guide already reflects current structure; update again post-refactor) and add unit tests that target the extracted validation utilities and coordinators.
+
+## 5. Guardrails
+* Preserve all existing callbacks and state properties; UI behavior must remain unchanged.
+* Continue routing all state mutations through `GifVisionViewModel` until a dedicated domain layer is introduced.
+* Ensure FFmpeg job IDs and persistence paths remain stable to avoid breaking cached outputs.
+* Maintain share intent behavior (caption formatting, hashtag normalization, loop metadata messaging).
+
+Adhering to this plan will make the codebase more approachable and reduce the risk of "spaghetti" regressions while protecting current functionality.

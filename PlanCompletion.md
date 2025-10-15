@@ -142,3 +142,27 @@
   - Kick off Phase 3 reusable component adoption starting with blend/log shared wrappers once coordinator APIs settle.
   - Begin drafting ENGINEGUIDE updates capturing the coordinator surface and cancellation flows for Phase 4 documentation.
   - Continue tracking the missing Android SDK setup so automated tests can execute successfully.
+
+## Session 2025-10-18 - Start
+- Continuing Phase 2, focusing on adding the remaining seams for coordinator/message utilities and tightening ShareCoordinator persistence handling per prior TODOs.
+- Current completion estimates carried forward:
+  - Phase 1: 100%
+  - Phase 2: 75%
+  - Phase 3: 0%
+  - Phase 4: 0%
+
+## Session 2025-10-18 - End
+- Added a configurable `MessageCenter.Config` surface so tests can inject clocks and flow buffers, completing the dedupe seam work outlined for Phase 2.
+- Extended `RenderScheduler` with injectable dispatchers/timestamp providers plus test-visible job snapshots to enable cancellation unit coverage without production-only hooks.
+- Refined `ShareCoordinator` persistence flows by centralizing export handling, sanitizing display names, and returning destination metadata to improve downstream logging.
+- Re-ran `./gradlew test --console=plain` (fails: missing Android SDK) to keep the tooling blocker documented after the coordinator updates.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 90% (core seams complete; outstanding work limited to coordinator-focused unit tests and ShareCoordinator edge-case validation).
+  - Phase 3: 0%
+  - Phase 4: 0%
+- TODOs for next session:
+  - Close out Phase 2 by adding coordinator + ShareCoordinator unit coverage (leveraging the new seams) and ensuring message dedupe behaviour is verified.
+  - Begin Phase 3 by extracting shared blend/log/preview composables per PlanDoc section 3.3.
+  - Draft ENGINEGUIDE updates detailing the coordinator/message architecture in preparation for Phase 4 documentation.
+  - Continue tracking Android SDK provisioning so automated Gradle tests can run locally without failure.

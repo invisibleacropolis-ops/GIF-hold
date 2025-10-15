@@ -166,3 +166,26 @@
   - Begin Phase 3 by extracting shared blend/log/preview composables per PlanDoc section 3.3.
   - Draft ENGINEGUIDE updates detailing the coordinator/message architecture in preparation for Phase 4 documentation.
   - Continue tracking Android SDK provisioning so automated Gradle tests can run locally without failure.
+
+## Session 2025-10-19 - Start
+- Continuing Phase 2 focus on coordinator/share utilities while initiating Phase 3 reusable component adoption as outlined in PlanDoc section 3.3.
+- Current completion estimates carried forward:
+  - Phase 1: 100%
+  - Phase 2: 90%
+  - Phase 3: 0%
+  - Phase 4: 0%
+
+## Session 2025-10-19 - End
+- Finished Phase 2 by adding JVM unit coverage for `MessageCenter`, `RenderScheduler`, and `ShareCoordinator`, and by injecting a configurable stream copier into `RenderScheduler` for testability without altering runtime behaviour.
+- Introduced a shared `GifPreviewCard` scaffold under `ui/components/preview` and refactored the layer stream preview to consume it, marking the first adoption step for Phase 3's reusable component rollout.
+- Re-ran `./gradlew test --console=plain` (fails: missing Android SDK) to capture the persistent tooling blocker after landing the new tests and UI refactor.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 100% (coordinator/message helpers now covered by focused JVM tests and injection seams).
+  - Phase 3: 10% (shared preview card scaffold created and adopted by layer stream preview).
+  - Phase 4: 0%
+- TODOs for next session:
+  - Continue Phase 3 by migrating master preview/blend cards and log panel consumers onto the new shared scaffolds, ensuring shared enablement logic follows.
+  - Audit remaining coordinator surfaces for documentation needs ahead of Phase 4 and plan corresponding ENGINEGUIDE updates.
+  - Evaluate opportunities for additional JVM tests covering share/export edge cases introduced by the new preview component once adoption expands.
+  - Keep tracking Android SDK provisioning so Gradle unit tests can execute successfully when the tooling gap is resolved.

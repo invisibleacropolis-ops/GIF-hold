@@ -101,6 +101,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation("com.antonkarpenko:ffmpeg-kit-full-gpl:1.1.0")
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

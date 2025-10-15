@@ -1134,34 +1134,46 @@ private fun BlendPreviewCard(
     val streamAReady = !layerState.streamA.generatedGifPath.isNullOrBlank()
     val streamBReady = !layerState.streamB.generatedGifPath.isNullOrBlank()
     val isGenerating = layerState.blendState.isGenerating
-    val controlsEnabled = streamAReady && streamBReady && !isGenerating
+    val hasAtLeastOneStream = streamAReady || streamBReady
+    val hasBothStreams = streamAReady && streamBReady
+    val controlsEnabled = hasAtLeastOneStream && !isGenerating
 
     ElevatedCard {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(text = "Blend Preview", style = MaterialTheme.typography.titleLarge)
 
-            if (!streamAReady || !streamBReady) {
+            if (!hasAtLeastOneStream) {
                 Text(
-                    text = "Render Stream A and Stream B to unlock blending.",
+                    text = "Render at least one stream to proceed.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            } else if (!hasBothStreams) {
+                Text(
+                    text = "Only one stream rendered - Generate will copy it to blend output.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
-            BlendModeDropdown(
-                mode = layerState.blendState.mode,
-                enabled = controlsEnabled,
-                onModeSelected = onBlendModeChange
-            )
+            // Only show blend mode and opacity controls if both streams exist
+            if (hasBothStreams) {
+                BlendModeDropdown(
+                    mode = layerState.blendState.mode,
+                    enabled = controlsEnabled,
+                    onModeSelected = onBlendModeChange
+                )
 
-            BlendOpacitySlider(
-                opacity = layerState.blendState.opacity,
-                enabled = controlsEnabled,
-                onOpacityChange = onBlendOpacityChange
-            )
+                BlendOpacitySlider(
+                    opacity = layerState.blendState.opacity,
+                    enabled = controlsEnabled,
+                    onOpacityChange = onBlendOpacityChange
+                )
+            }
 
             GenerateBlendButton(
                 enabled = controlsEnabled,
+                label = if (!hasBothStreams && hasAtLeastOneStream) "Copy Stream to Blend" else "Generate Blended GIF",
                 onGenerate = onGenerateBlend
             )
 
@@ -1262,6 +1274,7 @@ private fun BlendOpacitySlider(
 @Composable
 private fun GenerateBlendButton(
     enabled: Boolean,
+    label: String = "Generate Blended GIF",
     onGenerate: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1270,7 +1283,7 @@ private fun GenerateBlendButton(
         enabled = enabled,
         modifier = modifier.fillMaxWidth()
     ) {
-        Text("Generate Blended GIF")
+        Text(label)
     }
 }
 

@@ -526,7 +526,7 @@ class GifVisionViewModel(
         }
     }
 
-    /** Dispatches a layer blend job when both streams are ready. */
+    /** Dispatches a layer blend job when at least one stream is ready. */
     fun requestLayerBlend(layerId: Int) {
         val layer = _uiState.value.layers.firstOrNull { it.id == layerId } ?: return
         val validation = validateLayerBlend(layer)
@@ -538,7 +538,68 @@ class GifVisionViewModel(
         val streamAPath = layer.streamA.generatedGifPath
         val streamBPath = layer.streamB.generatedGifPath
         
-        if (streamAPath.isNullOrBlank() || streamBPath.isNullOrBlank()) {
+        val hasStreamA = !streamAPath.isNullOrBlank()
+        val hasStreamB = !streamBPath.isNullOrBlank()
+        
+        // Handle single-stream case - just copy the GIF
+        if (hasStreamA && !hasStreamB) {
+            appendLog(layerId, "Only Stream A present - copying to blend output")
+            viewModelScope.launch {
+                setLayerBlendGenerating(layerId, true)
+                try {
+                    val asset = mediaRepository.storeLayerBlend(layerId, streamAPath)
+                    updateLayer(layerId) { current ->
+                        current.copy(
+                            blendState = current.blendState.copy(
+                                blendedGifPath = asset.path,
+                                isGenerating = false
+                            )
+                        )
+                    }
+                    appendLog(layerId, "Stream A copied to blend output -> ${asset.path}")
+                    updateMasterBlendAvailability()
+                } catch (e: Exception) {
+                    updateLayer(layerId) { current ->
+                        current.copy(blendState = current.blendState.copy(isGenerating = false))
+                    }
+                    val message = e.message ?: "Unknown error during copy"
+                    appendLog(layerId, "Copy error: $message", LogSeverity.Error)
+                    postMessage("Blend failed: $message", isError = true)
+                }
+            }
+            return
+        }
+        
+        if (!hasStreamA && hasStreamB) {
+            appendLog(layerId, "Only Stream B present - copying to blend output")
+            viewModelScope.launch {
+                setLayerBlendGenerating(layerId, true)
+                try {
+                    val asset = mediaRepository.storeLayerBlend(layerId, streamBPath)
+                    updateLayer(layerId) { current ->
+                        current.copy(
+                            blendState = current.blendState.copy(
+                                blendedGifPath = asset.path,
+                                isGenerating = false
+                            )
+                        )
+                    }
+                    appendLog(layerId, "Stream B copied to blend output -> ${asset.path}")
+                    updateMasterBlendAvailability()
+                } catch (e: Exception) {
+                    updateLayer(layerId) { current ->
+                        current.copy(blendState = current.blendState.copy(isGenerating = false))
+                    }
+                    val message = e.message ?: "Unknown error during copy"
+                    appendLog(layerId, "Copy error: $message", LogSeverity.Error)
+                    postMessage("Blend failed: $message", isError = true)
+                }
+            }
+            return
+        }
+
+        // Both streams exist - validate files and perform actual blend
+        if (!hasStreamA || !hasStreamB) {
             appendLog(layerId, "Cannot blend - missing GIF files", LogSeverity.Error)
             return
         }
@@ -1117,16 +1178,19 @@ class GifVisionViewModel(
 
     private fun validateLayerBlend(layer: Layer): LayerBlendValidation {
         val errors = mutableListOf<String>()
-        if (layer.streamA.generatedGifPath.isNullOrBlank()) {
-            errors += "Stream A must be rendered before blending"
-        }
-        if (layer.streamB.generatedGifPath.isNullOrBlank()) {
-            errors += "Stream B must be rendered before blending"
+        val hasStreamA = !layer.streamA.generatedGifPath.isNullOrBlank()
+        val hasStreamB = !layer.streamB.generatedGifPath.isNullOrBlank()
+        
+        if (!hasStreamA && !hasStreamB) {
+            errors += "At least one stream must be rendered before blending"
         }
         if (layer.blendState.opacity !in 0f..1f) {
             errors += "Layer opacity must remain between 0 and 1"
         }
-        detectUnsupportedLayerBlend(layer)?.let { errors += it }
+        // Only check for incompatible blend modes if both streams exist
+        if (hasStreamA && hasStreamB) {
+            detectUnsupportedLayerBlend(layer)?.let { errors += it }
+        }
         return if (errors.isEmpty()) LayerBlendValidation.Ready else LayerBlendValidation.Blocked(errors)
     }
 

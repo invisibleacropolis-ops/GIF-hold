@@ -20,10 +20,9 @@ data class UiMessage(val message: String, val isError: Boolean = false)
  * redundant snackbars.
  */
 class MessageCenter(
-    private val clock: () -> Long = { SystemClock.elapsedRealtime() },
-    private val dedupeWindowMillis: Long = 1_500L
+    private val config: Config = Config()
 ) {
-    private val _messages = MutableSharedFlow<UiMessage>(extraBufferCapacity = 1)
+    private val _messages = config.sharedFlowFactory()
     val messages: SharedFlow<UiMessage> = _messages.asSharedFlow()
 
     @Volatile
@@ -38,8 +37,8 @@ class MessageCenter(
         val payload = UiMessage(trimmed, isError)
 
         val shouldEmit = synchronized(this) {
-            val now = clock()
-            val recentDuplicate = lastMessage == payload && (now - lastEmissionTimestamp) < dedupeWindowMillis
+            val now = config.clock()
+            val recentDuplicate = lastMessage == payload && (now - lastEmissionTimestamp) < config.dedupeWindowMillis
             if (recentDuplicate) {
                 false
             } else {
@@ -54,4 +53,13 @@ class MessageCenter(
             scope.launch { _messages.emit(payload) }
         }
     }
+
+    /** Configuration surface used to customize the [MessageCenter] for tests. */
+    data class Config(
+        val clock: () -> Long = { SystemClock.elapsedRealtime() },
+        val dedupeWindowMillis: Long = 1_500L,
+        val sharedFlowFactory: () -> MutableSharedFlow<UiMessage> = {
+            MutableSharedFlow(extraBufferCapacity = 1)
+        }
+    )
 }

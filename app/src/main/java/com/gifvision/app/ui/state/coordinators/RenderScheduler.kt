@@ -2,6 +2,7 @@ package com.gifvision.app.ui.state.coordinators
 
 import android.app.Application
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import com.gifvision.app.media.GifProcessingCoordinator
 import com.gifvision.app.media.GifProcessingEvent
 import com.gifvision.app.media.LayerBlendRequest
@@ -16,21 +17,25 @@ import com.gifvision.app.ui.state.LogSeverity
 import com.gifvision.app.ui.state.Stream
 import com.gifvision.app.ui.state.StreamSelection
 import com.gifvision.app.ui.state.messages.MessageCenter
+import java.io.File
+import kotlin.math.roundToInt
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CancellationException
-import java.io.File
-import kotlin.math.roundToInt
 
 /** Coordinates render operations with the FFmpeg processing stack. */
 internal class RenderScheduler(
     private val application: Application,
     private val processingCoordinator: GifProcessingCoordinator,
     private val mediaRepository: MediaRepository,
-    private val messageCenter: MessageCenter
+    private val messageCenter: MessageCenter,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val timestampProvider: () -> Long = { System.currentTimeMillis() },
+    private val cacheDirectoryProvider: () -> File = { application.cacheDir }
 ) {
 
     fun requestStreamRender(
@@ -323,6 +328,24 @@ internal class RenderScheduler(
         return false
     }
 
+    @VisibleForTesting
+    internal fun activeJobSnapshot(): Map<String, String> = synchronized(activeJobs) {
+        activeJobs.mapKeys { (key, _) -> key.describe() }
+            .mapValues { it.value.jobId }
+    }
+
+    @VisibleForTesting
+    internal fun isStreamJobActive(layerId: Int, stream: StreamSelection): Boolean =
+        synchronized(activeJobs) { activeJobs.containsKey(RenderJobKey.Stream(layerId, stream)) }
+
+    @VisibleForTesting
+    internal fun isLayerBlendActive(layerId: Int): Boolean =
+        synchronized(activeJobs) { activeJobs.containsKey(RenderJobKey.LayerBlend(layerId)) }
+
+    @VisibleForTesting
+    internal fun isMasterBlendActive(): Boolean =
+        synchronized(activeJobs) { activeJobs.containsKey(RenderJobKey.MasterBlend) }
+
     private fun registerJob(
         key: RenderJobKey,
         jobId: String,
@@ -363,11 +386,17 @@ internal class RenderScheduler(
 
     private val activeJobs = mutableMapOf<RenderJobKey, ActiveJob>()
 
-    private suspend fun copyUriToCache(uri: Uri): String = withContext(Dispatchers.IO) {
-        val tempFile = File(application.cacheDir, "temp_input_${System.currentTimeMillis()}.mp4")
+    private suspend fun copyUriToCache(uri: Uri): String = withContext(ioDispatcher) {
+        val tempFile = File(cacheDirectoryProvider(), "temp_input_${timestampProvider()}.mp4")
         application.contentResolver.openInputStream(uri)?.use { input ->
             tempFile.outputStream().use { output -> input.copyTo(output) }
         }
         tempFile.absolutePath
+    }
+
+    private fun RenderJobKey.describe(): String = when (this) {
+        is RenderJobKey.Stream -> "stream:${layerId}:${stream.name}"
+        is RenderJobKey.LayerBlend -> "layerBlend:$layerId"
+        RenderJobKey.MasterBlend -> "masterBlend"
     }
 }

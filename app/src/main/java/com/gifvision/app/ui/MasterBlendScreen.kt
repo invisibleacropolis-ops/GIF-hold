@@ -1,70 +1,46 @@
 package com.gifvision.app.ui
 
-import androidx.compose.foundation.Image
-import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
-import coil.request.ImageRequest
-import com.gifvision.app.ui.components.AdjustmentSlider
+import com.gifvision.app.ui.components.BlendModeDropdown
+import com.gifvision.app.ui.components.BlendOpacitySlider
+import com.gifvision.app.ui.components.BlendPreviewThumbnail
+import com.gifvision.app.ui.components.GenerateBlendButton
 import com.gifvision.app.ui.components.FfmpegLogPanel
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.MasterBlendConfig
 import com.gifvision.app.ui.state.GifLoopMetadata
 import com.gifvision.app.ui.state.PlatformPreview
 import com.gifvision.app.ui.state.ShareSetupState
-import kotlin.math.roundToInt
 import kotlin.math.abs
 
 /**
@@ -91,28 +67,10 @@ fun MasterBlendScreen(
 ) {
     val scrollState = rememberScrollState()
     val controlsEnabled = state.isEnabled && !state.isGenerating
-    val context = LocalContext.current
-    val imageRequest = remember(state.masterGifPath) {
-        state.masterGifPath?.let { path ->
-            val gifFile = java.io.File(path)
-            ImageRequest.Builder(context)
-                .data(gifFile)
-                .crossfade(true)
-                .apply {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        decoderFactory(ImageDecoderDecoder.Factory())
-                    } else {
-                        decoderFactory(GifDecoder.Factory())
-                    }
-                }
-                .build()
-        }
-    }
-    val painter = rememberAsyncImagePainter(model = imageRequest)
-    val painterState = painter.state
     val saveEnabled = state.masterGifPath != null && !state.isGenerating
     val shareEnabled = state.masterGifPath != null && !state.isGenerating && !state.shareSetup.isPreparingShare
     val generateLabel = if (state.masterGifPath == null) "Generate Master Blend" else "Regenerate Master Blend"
+    val masterOpacitySupportingText = "0.00 shows only Layer 1 Blend · 1.00 fully overlays Layer 2 Blend"
 
     val masterControls: @Composable () -> Unit = {
         ElevatedCard {
@@ -133,72 +91,29 @@ fun MasterBlendScreen(
                     )
                 }
 
-                var expanded by remember { mutableStateOf(false) }
-                var menuWidth by remember { mutableStateOf(0.dp) }
-                val density = LocalDensity.current
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned { coordinates ->
-                                menuWidth = with(density) { coordinates.size.width.toDp() }
-                            }
-                            .clickable(enabled = controlsEnabled) { expanded = !expanded },
-                        value = state.mode.displayName,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Blend Mode") },
-                        enabled = controlsEnabled,
-                        trailingIcon = {
-                            Icon(
-                                imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
-                                contentDescription = if (expanded) "Collapse blend options" else "Expand blend options"
-                            )
-                        }
-                    )
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                        modifier = Modifier.width(menuWidth)
-                    ) {
-                        GifVisionBlendMode.entries.forEach { mode ->
-                            DropdownMenuItem(
-                                text = { Text(mode.displayName) },
-                                enabled = controlsEnabled,
-                                onClick = {
-                                    expanded = false
-                                    onModeChange(mode)
-                                }
-                            )
-                        }
-                    }
-                }
-
-                AdjustmentSlider(
-                    label = "Opacity",
-                    value = state.opacity,
-                    onValueChange = { raw ->
-                        val quantized = (raw * 100).roundToInt() / 100f
-                        onOpacityChange(quantized)
-                    },
-                    valueRange = 0f..1f,
-                    steps = 100,
+                BlendModeDropdown(
+                    mode = state.mode,
                     enabled = controlsEnabled,
-                    valueFormatter = { value -> "%.2f".format(value) }
+                    onModeSelected = onModeChange
+                )
+
+                BlendOpacitySlider(
+                    opacity = state.opacity,
+                    enabled = controlsEnabled,
+                    onOpacityChange = onOpacityChange,
+                    supportingText = masterOpacitySupportingText
                 )
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Button(
-                        onClick = onGenerateMasterBlend,
+                    GenerateBlendButton(
                         enabled = controlsEnabled,
+                        onGenerate = onGenerateMasterBlend,
+                        label = generateLabel,
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text(generateLabel)
-                    }
+                    )
                     OutlinedButton(
                         onClick = onSaveMasterBlend,
                         enabled = saveEnabled,
@@ -236,46 +151,11 @@ fun MasterBlendScreen(
         Card(colors = CardDefaults.cardColors()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(text = "Master Preview", style = MaterialTheme.typography.titleLarge)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f), // Use 16:9 aspect ratio to match typical video
-                    contentAlignment = Alignment.Center
-                ) {
-                    when {
-                        state.masterGifPath == null -> {
-                            Text(
-                                text = "Generate Master Blend",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        painterState is AsyncImagePainter.State.Loading -> {
-                            CircularProgressIndicator()
-                        }
-
-                        painterState is AsyncImagePainter.State.Error -> {
-                            Text(
-                                text = painterState.result.throwable.message
-                                    ?: "Preview failed to load",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        else -> {
-                            Image(
-                                painter = painter,
-                                contentDescription = "Master blend preview",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                    }
-                }
+                BlendPreviewThumbnail(
+                    path = state.masterGifPath,
+                    emptyStateText = "Generate Master Blend",
+                    contentDescription = "Master blend preview"
+                )
             }
         }
     }

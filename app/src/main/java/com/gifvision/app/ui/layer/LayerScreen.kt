@@ -19,11 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gifvision.app.ui.components.FfmpegLogPanel
+import com.gifvision.app.ui.layout.LayoutMetrics
 import com.gifvision.app.ui.state.AdjustmentSettings
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.Layer
 import com.gifvision.app.ui.state.LogSeverity
 import com.gifvision.app.ui.state.StreamSelection
+import com.gifvision.app.ui.resources.LayerCopy
 import com.gifvision.app.ui.resources.LogCopy
 import com.gifvision.app.ui.resources.PanelCopy
 import com.gifvision.app.ui.resources.VIDEO_MIME_TYPES
@@ -39,6 +41,7 @@ import com.gifvision.app.ui.resources.VIDEO_MIME_TYPES
 fun LayerScreen(
     layerState: Layer,
     isWideLayout: Boolean,
+    layoutMetrics: LayoutMetrics = LayoutMetrics.Default,
     onStreamSelected: (StreamSelection) -> Unit,
     onAdjustmentsChange: (StreamSelection, (AdjustmentSettings) -> AdjustmentSettings) -> Unit,
     onImportClip: (Uri) -> Unit,
@@ -83,17 +86,20 @@ fun LayerScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(
+                horizontal = layoutMetrics.contentPaddingHorizontal,
+                vertical = layoutMetrics.contentPaddingVertical
+            ),
+        verticalArrangement = Arrangement.spacedBy(layoutMetrics.sectionSpacing)
     ) {
         if (isWideLayout) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(layoutMetrics.columnSpacing),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                    verticalArrangement = Arrangement.spacedBy(layoutMetrics.sectionSpacing)
                 ) {
                     UploadCard(
                         layerState = layerState,
@@ -124,7 +130,7 @@ fun LayerScreen(
 
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                    verticalArrangement = Arrangement.spacedBy(layoutMetrics.sectionSpacing)
                 ) {
                     StreamPreviewCard(
                         streamState = layerState.streamA,
@@ -179,7 +185,7 @@ fun LayerScreen(
             )
 
             Text(
-                text = "Stream Outputs",
+                text = LayerCopy.STREAM_OUTPUTS_TITLE,
                 style = MaterialTheme.typography.titleMedium
             )
 

@@ -11,9 +11,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.gifvision.app.ui.components.FfmpegLogPanel
+import com.gifvision.app.ui.layout.LayoutMetrics
 import com.gifvision.app.ui.resources.PanelCopy
 import com.gifvision.app.ui.state.GifLoopMetadata
 import com.gifvision.app.ui.state.GifVisionBlendMode
@@ -31,6 +31,7 @@ import com.gifvision.app.ui.state.MasterBlendConfig
 fun MasterBlendScreen(
     state: MasterBlendConfig,
     isWideLayout: Boolean,
+    layoutMetrics: LayoutMetrics = LayoutMetrics.Default,
     onModeChange: (GifVisionBlendMode) -> Unit,
     onOpacityChange: (Float) -> Unit,
     onGenerateMasterBlend: () -> Unit,
@@ -79,24 +80,27 @@ fun MasterBlendScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(
+                horizontal = layoutMetrics.contentPaddingHorizontal,
+                vertical = layoutMetrics.contentPaddingVertical
+            ),
+        verticalArrangement = Arrangement.spacedBy(layoutMetrics.sectionSpacing)
     ) {
         if (isWideLayout) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(layoutMetrics.columnSpacing),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                    verticalArrangement = Arrangement.spacedBy(layoutMetrics.sectionSpacing)
                 ) {
                     masterControls()
                     logPanel()
                 }
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                    verticalArrangement = Arrangement.spacedBy(layoutMetrics.sectionSpacing)
                 ) {
                     previewCard()
                     shareSetupCard()

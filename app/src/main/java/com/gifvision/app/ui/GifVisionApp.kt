@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.InvertColors
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import com.gifvision.app.navigation.GifVisionDestination
 import com.gifvision.app.ui.layout.computeUiLayoutConfig
+import com.gifvision.app.ui.layout.layoutMetricsFor
 import com.gifvision.app.ui.layer.LayerScreen
 import com.gifvision.app.ui.master.MasterBlendScreen
 import com.gifvision.app.ui.state.AdjustmentSettings
@@ -97,6 +98,7 @@ fun GifVisionApp(
     val currentLayerId = navBackStackEntry?.arguments?.getInt(GifVisionDestination.Layer.ARG_LAYER_ID)
     val currentRoute = navBackStackEntry?.destination?.route
     val layoutConfig = computeUiLayoutConfig(windowSizeClass)
+    val layoutMetrics = layoutMetricsFor(layoutConfig)
 
     val firstLayer = uiState.layers.getOrNull(0)
     val secondLayer = uiState.layers.getOrNull(1)
@@ -256,6 +258,7 @@ fun GifVisionApp(
                     LayerScreen(
                         layerState = layer,
                         isWideLayout = layoutConfig.isWideLayout,
+                        layoutMetrics = layoutMetrics,
                         onStreamSelected = { stream -> onSelectStream(layer.id, stream) },
                         onAdjustmentsChange = { stream, transformer ->
                             onAdjustmentsChange(layer.id, stream, transformer)
@@ -284,6 +287,7 @@ fun GifVisionApp(
                 MasterBlendScreen(
                     state = uiState.masterBlend,
                     isWideLayout = layoutConfig.isWideLayout,
+                    layoutMetrics = layoutMetrics,
                     onModeChange = onMasterBlendModeChange,
                     onOpacityChange = onMasterBlendOpacityChange,
                     onGenerateMasterBlend = onRequestMasterBlend,

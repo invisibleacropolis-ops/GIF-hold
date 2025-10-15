@@ -1,38 +1,22 @@
 package com.gifvision.app.ui.state
 
 import android.app.Application
-import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.text.format.Formatter
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import java.io.File
-import com.gifvision.app.media.AndroidShareRepository
-import com.gifvision.app.media.FfmpegKitGifProcessingCoordinator
-import com.gifvision.app.media.GifProcessingCoordinator
-import com.gifvision.app.media.GifProcessingNotificationAdapter
-import com.gifvision.app.media.GifProcessingEvent
-import com.gifvision.app.media.LayerBlendRequest
-import com.gifvision.app.media.MediaRepository
-import com.gifvision.app.media.MasterBlendRequest
-import com.gifvision.app.media.ScopedStorageMediaRepository
-import com.gifvision.app.media.ShareRepository
-import com.gifvision.app.media.ShareRequest
-import com.gifvision.app.media.ShareResult
-import com.gifvision.app.media.StreamProcessingRequest
-import android.provider.DocumentsContract
-import android.provider.OpenableColumns
 import com.gifvision.app.ui.resources.LogCopy
-import com.gifvision.app.ui.state.LogEntry
-import com.gifvision.app.ui.state.LogSeverity
+import com.gifvision.app.ui.state.coordinators.ClipImportOutcome
+import com.gifvision.app.ui.state.coordinators.ClipImporter
+import com.gifvision.app.ui.state.coordinators.RenderScheduler
+import com.gifvision.app.ui.state.coordinators.ShareCoordinator
+import com.gifvision.app.ui.state.messages.MessageCenter
+import com.gifvision.app.ui.state.messages.UiMessage
 import com.gifvision.app.ui.state.validation.LayerBlendValidation
 import com.gifvision.app.ui.state.validation.MasterBlendValidation
 import com.gifvision.app.ui.state.validation.StreamValidation
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableSharedFlow
+import com.gifvision.app.ui.state.validation.validateLayerBlend
+import com.gifvision.app.ui.state.validation.validateMasterBlend
+import com.gifvision.app.ui.state.validation.validateStream
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.SharedFlow
@@ -44,8 +28,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 /**
@@ -55,17 +37,22 @@ import kotlin.math.roundToLong
  */
 class GifVisionViewModel(
     application: Application,
-    notificationAdapter: GifProcessingNotificationAdapter = GifProcessingNotificationAdapter.Noop,
-    private val mediaRepository: MediaRepository = ScopedStorageMediaRepository(application),
-    private val processingCoordinator: GifProcessingCoordinator = FfmpegKitGifProcessingCoordinator(
-        context = application,
-        mediaRepository = mediaRepository,
-        notificationAdapter = notificationAdapter
+    private val dependencies: GifVisionDependencies = GifVisionDependencies.default(application),
+    private val messageCenter: MessageCenter = MessageCenter(),
+    private val clipImporter: ClipImporter = ClipImporter(application, dependencies.mediaRepository),
+    private val renderScheduler: RenderScheduler = RenderScheduler(
+        application = application,
+        processingCoordinator = dependencies.processingCoordinator,
+        mediaRepository = dependencies.mediaRepository,
+        messageCenter = messageCenter
     ),
-    private val shareRepository: ShareRepository = AndroidShareRepository(application)
+    private val shareCoordinator: ShareCoordinator = ShareCoordinator(
+        dependencies.mediaRepository,
+        dependencies.shareRepository
+    )
 ) : AndroidViewModel(application) {
 
-    private val contentResolver = application.contentResolver
+    private val mediaRepository = dependencies.mediaRepository
 
     private val _uiState = MutableStateFlow(GifVisionUiState())
 
@@ -83,12 +70,8 @@ class GifVisionViewModel(
     /** Exposes whether the master blend button can be triggered. */
     val masterBlendValidation: StateFlow<MasterBlendValidation> = _masterBlendValidation.asStateFlow()
 
-    private val _uiMessages = MutableSharedFlow<UiMessage>(extraBufferCapacity = 1)
-
     /** Toast/one-off message feed consumed by the activity for user feedback. */
-    val uiMessages: SharedFlow<UiMessage> = _uiMessages.asSharedFlow()
-
-    data class UiMessage(val message: String, val isError: Boolean = false)
+    val uiMessages: SharedFlow<UiMessage> = messageCenter.messages
 
     init {
         _uiState.value.layers.forEach(::refreshValidationForLayer)
@@ -102,87 +85,20 @@ class GifVisionViewModel(
      */
     fun importSourceClip(layerId: Int, uri: Uri) {
         viewModelScope.launch {
-            val metadata = try {
-                withContext(Dispatchers.IO) { loadClipMetadata(uri) }
-            } catch (security: SecurityException) {
-                appendLog(
-                    layerId,
-                    LogCopy.accessRevoked(uri, security.message),
-                    LogSeverity.Error
-                )
-                clearLayerMedia(layerId)
-                return@launch
-            } catch (throwable: Throwable) {
-                appendLog(
-                    layerId,
-                    "Failed to inspect clip: ${throwable.message ?: throwable.javaClass.simpleName}",
-                    LogSeverity.Error
-                )
-                return@launch
+            val layer = _uiState.value.layers.firstOrNull { it.id == layerId } ?: return@launch
+            when (val outcome = clipImporter.import(layer, uri)) {
+                is ClipImportOutcome.Success -> {
+                    updateLayer(layerId) { outcome.layer }
+                    outcome.warnings.forEach { appendLog(layerId, it, LogSeverity.Warning) }
+                    appendLog(layerId, "Imported ${outcome.importedName}")
+                }
+                is ClipImportOutcome.Failure -> {
+                    appendLog(layerId, outcome.message, outcome.severity)
+                    if (outcome.resetLayer) {
+                        updateLayer(layerId) { current -> clipImporter.resetLayer(current) }
+                    }
+                }
             }
-            val registered = try {
-                mediaRepository.registerSourceClip(layerId, uri, metadata.displayName)
-            } catch (security: SecurityException) {
-                appendLog(
-                    layerId,
-                    LogCopy.storagePermissionRevoked(uri, security.message),
-                    LogSeverity.Error
-                )
-                clearLayerMedia(layerId)
-                return@launch
-            }
-            val thumbnailImage = metadata.thumbnailBitmap?.asImageBitmap()
-            val clipState = SourceClip(
-                uri = uri,
-                displayName = metadata.displayName ?: registered.displayName,
-                mimeType = metadata.mimeType,
-                sizeBytes = metadata.sizeBytes,
-                durationMs = metadata.durationMs,
-                width = metadata.width,
-                height = metadata.height,
-                lastModified = metadata.lastModified,
-                thumbnail = thumbnailImage
-            )
-
-            var clipWarnings: List<String> = emptyList()
-            updateLayer(layerId) { layer ->
-                val durationMs = clipState.durationMs ?: 0L
-                val sanitizedDuration = durationMs.coerceAtLeast(0L)
-                val (streamAAdjustments, warningsA) = adjustForClipDefaults(layer.streamA.adjustments, clipState)
-                val (streamBAdjustments, warningsB) = adjustForClipDefaults(layer.streamB.adjustments, clipState)
-                clipWarnings = (warningsA + warningsB).distinct()
-                val updatedStreamA = layer.streamA.copy(
-                    playbackPositionMs = 0L,
-                    isPlaying = false,
-                    trimStartMs = 0L,
-                    trimEndMs = sanitizedDuration,
-                    previewThumbnail = thumbnailImage,
-                    adjustments = streamAAdjustments.copy(
-                        clipDurationSeconds = (sanitizedDuration / 1000f)
-                            .coerceAtLeast(0.5f)
-                            .coerceAtMost(30f)
-                    )
-                )
-                val updatedStreamB = layer.streamB.copy(
-                    playbackPositionMs = 0L,
-                    isPlaying = false,
-                    trimStartMs = 0L,
-                    trimEndMs = sanitizedDuration,
-                    previewThumbnail = thumbnailImage,
-                    adjustments = streamBAdjustments.copy(
-                        clipDurationSeconds = (sanitizedDuration / 1000f)
-                            .coerceAtLeast(0.5f)
-                            .coerceAtMost(30f)
-                    )
-                )
-                layer.copy(
-                    sourceClip = clipState,
-                    streamA = updatedStreamA,
-                    streamB = updatedStreamB
-                )
-            }
-            clipWarnings.forEach { appendLog(layerId, it, LogSeverity.Warning) }
-            appendLog(layerId, "Imported ${clipState.displayName}")
         }
     }
 
@@ -408,7 +324,7 @@ class GifVisionViewModel(
             }
         }
         if (severity != LogSeverity.Info) {
-            postMessage(message, isError = severity == LogSeverity.Error)
+            messageCenter.post(viewModelScope, message, isError = severity == LogSeverity.Error)
         }
     }
 
@@ -430,104 +346,24 @@ class GifVisionViewModel(
             logValidationFailure(layerId, listOf("Source clip missing for ${layer.title}"))
             return
         }
-
-        viewModelScope.launch {
-            setStreamGenerating(layerId, stream, true)
-            
-            // Copy the content URI to a temporary file that FFmpeg can read
-            val sourcePath = try {
-                withContext(Dispatchers.IO) {
-                    val tempFile = File(
-                        getApplication<Application>().cacheDir,
-                        "temp_input_${System.currentTimeMillis()}.mp4"
+        renderScheduler.requestStreamRender(
+            scope = viewModelScope,
+            layerId = layerId,
+            streamSelection = stream,
+            streamState = targetStream,
+            sourceUri = sourceUri,
+            onGeneratingChange = { generating -> setStreamGenerating(layerId, stream, generating) },
+            onStreamCompleted = { path, recordedAt ->
+                updateStream(layerId, stream) { current ->
+                    current.copy(
+                        generatedGifPath = path,
+                        isGenerating = false,
+                        lastRenderTimestamp = recordedAt
                     )
-                    getApplication<Application>().contentResolver.openInputStream(sourceUri)?.use { input ->
-                        tempFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    tempFile.absolutePath
                 }
-            } catch (e: Exception) {
-                appendLog(layerId, "Failed to prepare source file: ${e.message}", LogSeverity.Error)
-                setStreamGenerating(layerId, stream, false)
-                return@launch
-            }
-            
-            processingCoordinator.renderStream(
-                StreamProcessingRequest(
-                    layerId = layerId,
-                    stream = stream,
-                    sourcePath = sourcePath,
-                    adjustments = targetStream.adjustments,
-                    trimStartMs = targetStream.trimStartMs,
-                    trimEndMs = targetStream.trimEndMs
-                )
-            ).collect { event ->
-                when (event) {
-                    is GifProcessingEvent.Started -> {
-                        event.message?.let { appendLog(layerId, it) }
-                    }
-
-                    is GifProcessingEvent.Progress -> {
-                        val percent = (event.progress * 100).roundToInt()
-                        appendLog(layerId, event.message ?: LogCopy.jobProgress(event.jobId, percent))
-                    }
-
-                    is GifProcessingEvent.Completed -> {
-                        val asset = mediaRepository.storeStreamOutput(layerId, stream, event.outputPath)
-                        updateStream(layerId, stream) { current ->
-                            current.copy(
-                                generatedGifPath = asset.path,
-                                isGenerating = false,
-                                lastRenderTimestamp = asset.recordedAtEpochMillis
-                            )
-                        }
-                        event.logs.forEach { appendLog(layerId, it) }
-                        appendLog(layerId, LogCopy.jobComplete(event.jobId, asset.path))
-                        
-                        // Clean up temporary file
-                        try {
-                            File(sourcePath).delete()
-                        } catch (e: Exception) {
-                            // Ignore cleanup errors
-                        }
-                    }
-
-                    is GifProcessingEvent.Failed -> {
-                        updateStream(layerId, stream) { current -> current.copy(isGenerating = false) }
-                        appendLog(
-                            layerId,
-                            "${event.jobId} failed: ${event.throwable.message}",
-                            LogSeverity.Error
-                        )
-                        
-                        // Clean up temporary file
-                        try {
-                            File(sourcePath).delete()
-                        } catch (e: Exception) {
-                            // Ignore cleanup errors
-                        }
-                    }
-
-                    is GifProcessingEvent.Cancelled -> {
-                        updateStream(layerId, stream) { current -> current.copy(isGenerating = false) }
-                        appendLog(
-                            layerId,
-                            "${event.jobId} cancelled by user",
-                            LogSeverity.Warning
-                        )
-                        
-                        // Clean up temporary file
-                        try {
-                            File(sourcePath).delete()
-                        } catch (e: Exception) {
-                            // Ignore cleanup errors
-                        }
-                    }
-                }
-            }
-        }
+            },
+            onLog = { message, severity -> appendLog(layerId, message, severity) }
+        )
     }
 
     /** Dispatches a layer blend job once at least one stream render is available. */
@@ -538,141 +374,20 @@ class GifVisionViewModel(
             logValidationFailure(layerId, validation.reasons)
             return
         }
-
-        val streamAPath = layer.streamA.generatedGifPath
-        val streamBPath = layer.streamB.generatedGifPath
-
-        val hasStreamA = !streamAPath.isNullOrBlank()
-        val hasStreamB = !streamBPath.isNullOrBlank()
-
-        if (!hasStreamA && !hasStreamB) {
-            appendLog(layerId, "Cannot blend - missing GIF files", LogSeverity.Error)
-            return
-        }
-
-        if (hasStreamA && hasStreamB) {
-            // Validate that both files actually exist
-            val fileA = java.io.File(streamAPath)
-            val fileB = java.io.File(streamBPath)
-
-            if (!fileA.exists()) {
-                appendLog(layerId, LogCopy.gifFileNotFound("Stream A", streamAPath), LogSeverity.Error)
-                postMessage("Stream A GIF file missing. Try regenerating it.", isError = true)
-                return
-            }
-
-            if (!fileB.exists()) {
-                appendLog(layerId, LogCopy.gifFileNotFound("Stream B", streamBPath), LogSeverity.Error)
-                postMessage("Stream B GIF file missing. Try regenerating it.", isError = true)
-                return
-            }
-
-            appendLog(layerId, "Blending ${fileA.name} + ${fileB.name} with ${layer.blendState.mode.displayName} mode at ${layer.blendState.opacity} opacity")
-
-            viewModelScope.launch {
-                setLayerBlendGenerating(layerId, true)
-                try {
-                    processingCoordinator.blendLayer(
-                        LayerBlendRequest(
-                            layerId = layerId,
-                            streamAPath = streamAPath,
-                            streamBPath = streamBPath,
-                            blendMode = layer.blendState.mode,
-                            opacity = layer.blendState.opacity,
-                            suggestedOutputPath = layer.blendState.blendedGifPath
-                        )
-                    ).collect { event ->
-                        when (event) {
-                            is GifProcessingEvent.Started -> event.message?.let { appendLog(layerId, it) }
-                            is GifProcessingEvent.Progress -> {
-                                val percent = (event.progress * 100).roundToInt()
-                                appendLog(layerId, event.message ?: LogCopy.jobProgress(event.jobId, percent))
-                            }
-                            is GifProcessingEvent.Completed -> {
-                                val asset = mediaRepository.storeLayerBlend(layerId, event.outputPath)
-                                updateLayer(layerId) { current ->
-                                    current.copy(
-                                        blendState = current.blendState.copy(
-                                            blendedGifPath = asset.path,
-                                            isGenerating = false
-                                        )
-                                    )
-                                }
-                                event.logs.forEach { appendLog(layerId, it) }
-                                appendLog(layerId, LogCopy.jobComplete(event.jobId, asset.path))
-                                updateMasterBlendAvailability()
-                            }
-                            is GifProcessingEvent.Failed -> {
-                                updateLayer(layerId) { current ->
-                                    current.copy(blendState = current.blendState.copy(isGenerating = false))
-                                }
-                                appendLog(
-                                    layerId,
-                                    "${event.jobId} failed: ${event.throwable.message}",
-                                    LogSeverity.Error
-                                )
-                                postMessage("Blend failed: ${event.throwable.message}", isError = true)
-                            }
-                            is GifProcessingEvent.Cancelled -> {
-                                updateLayer(layerId) { current ->
-                                    current.copy(blendState = current.blendState.copy(isGenerating = false))
-                                }
-                                appendLog(
-                                    layerId,
-                                    "${event.jobId} cancelled by user",
-                                    LogSeverity.Warning
-                                )
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Catch any uncaught exceptions to prevent app crashes
-                    updateLayer(layerId) { current ->
-                        current.copy(blendState = current.blendState.copy(isGenerating = false))
-                    }
-                    val message = e.message ?: "Unknown error during blend"
-                    appendLog(layerId, LogCopy.blendError(message), LogSeverity.Error)
-                    postMessage("Blend failed: $message", isError = true)
-                }
-            }
-            return
-        }
-
-        val sourcePath = streamAPath ?: streamBPath
-        val readyStreamLabel = if (hasStreamA) "Stream A" else "Stream B"
-        val sourceFile = java.io.File(sourcePath!!)
-
-        if (!sourceFile.exists()) {
-            appendLog(layerId, LogCopy.gifFileNotFound(readyStreamLabel, sourcePath), LogSeverity.Error)
-            postMessage("$readyStreamLabel GIF file missing. Try regenerating it.", isError = true)
-            return
-        }
-
-        appendLog(layerId, "$readyStreamLabel ready – copying ${sourceFile.name} into the blend preview")
-
-        viewModelScope.launch {
-            setLayerBlendGenerating(layerId, true)
-            try {
-                val asset = mediaRepository.storeLayerBlend(layerId, sourcePath)
+        renderScheduler.requestLayerBlend(
+            scope = viewModelScope,
+            layer = layer,
+            onGeneratingChange = { generating -> setLayerBlendGenerating(layerId, generating) },
+            onBlendSaved = { path ->
                 updateLayer(layerId) { current ->
                     current.copy(
-                        blendState = current.blendState.copy(
-                            blendedGifPath = asset.path,
-                            isGenerating = false
-                        )
+                        blendState = current.blendState.copy(blendedGifPath = path)
                     )
                 }
-                appendLog(layerId, "Blend preview now mirrors ${sourceFile.name}")
-                updateMasterBlendAvailability()
-            } catch (e: Exception) {
-                updateLayer(layerId) { current ->
-                    current.copy(blendState = current.blendState.copy(isGenerating = false))
-                }
-                val message = e.message ?: "Unknown error during blend"
-                appendLog(layerId, LogCopy.blendError(message), LogSeverity.Error)
-                postMessage("Blend failed: $message", isError = true)
-            }
-        }
+            },
+            onLog = { message, severity -> appendLog(layerId, message, severity) },
+            onMasterAvailabilityChange = { updateMasterBlendAvailability() }
+        )
     }
 
     /** Dispatches the master blend job after confirming both layers produced blends. */
@@ -683,60 +398,23 @@ class GifVisionViewModel(
             logValidationFailure(layerId = null, validation.reasons)
             return
         }
-
-        val layerOne = state.layers.getOrNull(0)?.blendState?.blendedGifPath ?: return
-        val layerTwo = state.layers.getOrNull(1)?.blendState?.blendedGifPath ?: return
-
-        viewModelScope.launch {
-            setMasterBlendGenerating(true)
-            processingCoordinator.mergeMaster(
-                MasterBlendRequest(
-                    layerOnePath = layerOne,
-                    layerTwoPath = layerTwo,
-                    blendMode = state.masterBlend.mode,
-                    opacity = state.masterBlend.opacity,
-                    suggestedOutputPath = state.masterBlend.masterGifPath
-                )
-            ).collect { event ->
-                when (event) {
-                    is GifProcessingEvent.Started -> event.message?.let { appendLog(null, it) }
-                    is GifProcessingEvent.Progress -> {
-                        val percent = (event.progress * 100).roundToInt()
-                        appendLog(null, event.message ?: LogCopy.jobProgress(event.jobId, percent))
-                    }
-                    is GifProcessingEvent.Completed -> {
-                        val asset = mediaRepository.storeMasterBlend(event.outputPath)
-                        _uiState.update { current ->
-                            current.copy(
-                                masterBlend = current.masterBlend.copy(
-                                    masterGifPath = asset.path,
-                                    isGenerating = false
-                                )
-                            )
-                        }
-                        event.logs.forEach { appendLog(null, it) }
-                        appendLog(null, LogCopy.jobComplete(event.jobId, asset.path))
-                    }
-                    is GifProcessingEvent.Failed -> {
-                        setMasterBlendGenerating(false)
-                        appendLog(
-                            null,
-                            "${event.jobId} failed: ${event.throwable.message}",
-                            LogSeverity.Error
+        renderScheduler.requestMasterBlend(
+            scope = viewModelScope,
+            state = state,
+            onGeneratingChange = { generating -> setMasterBlendGenerating(generating) },
+            onMasterSaved = { path ->
+                _uiState.update { current ->
+                    current.copy(
+                        masterBlend = current.masterBlend.copy(
+                            masterGifPath = path,
+                            isGenerating = false
                         )
-                    }
-                    is GifProcessingEvent.Cancelled -> {
-                        setMasterBlendGenerating(false)
-                        appendLog(
-                            null,
-                            "${event.jobId} cancelled by user",
-                            LogSeverity.Warning
-                        )
-                    }
+                    )
                 }
-            }
-            refreshMasterBlendValidation()
-        }
+                refreshMasterBlendValidation()
+            },
+            onLog = { message, severity -> appendLog(null, message, severity) }
+        )
     }
 
     /** Shares the master blend through the injected [ShareRepository]. */
@@ -745,29 +423,15 @@ class GifVisionViewModel(
         val outputPath = master.masterGifPath
         if (outputPath.isNullOrBlank()) {
             appendLog(null, LogCopy.shareBlockedMasterNotReady(), LogSeverity.Warning)
-            postMessage("Render the master blend before sharing.", isError = true)
+            messageCenter.post(viewModelScope, "Render the master blend before sharing.", isError = true)
             return
         }
         if (master.shareSetup.isPreparingShare) return
         updateShareSetup { share -> share.copy(isPreparingShare = true) }
         viewModelScope.launch {
-            val request = ShareRequest(
-                path = outputPath,
-                displayName = deriveDisplayName(outputPath),
-                caption = master.shareSetup.caption,
-                hashtags = master.shareSetup.hashtags,
-                loopMetadata = master.shareSetup.loopMetadata
-            )
-            when (val result = shareRepository.shareAsset(request)) {
-                is ShareResult.Success -> {
-                    appendLog(null, result.description)
-                    postMessage(result.description)
-                }
-                is ShareResult.Failure -> {
-                    appendLog(null, result.errorMessage, LogSeverity.Error)
-                    postMessage(result.errorMessage, isError = true)
-                }
-            }
+            val result = shareCoordinator.shareMasterBlend(master)
+            appendLog(null, result.logMessage, result.severity)
+            messageCenter.post(viewModelScope, result.userMessage, isError = result.isError)
             updateShareSetup { share -> share.copy(isPreparingShare = false) }
         }
     }
@@ -778,19 +442,13 @@ class GifVisionViewModel(
         val outputPath = master.masterGifPath
         if (outputPath.isNullOrBlank()) {
             appendLog(null, LogCopy.saveBlockedMasterNotReady(), LogSeverity.Warning)
-            postMessage("Render the master blend before saving.", isError = true)
+            messageCenter.post(viewModelScope, "Render the master blend before saving.", isError = true)
             return
         }
         viewModelScope.launch {
-            runCatching {
-                val destination = mediaRepository.exportToDownloads(outputPath, deriveDisplayName(outputPath))
-                appendLog(null, "Master blend saved to ${destination}")
-                postMessage("Saved GIF to Downloads")
-            }.onFailure { throwable ->
-                val message = throwable.message ?: "Unable to save GIF"
-                appendLog(null, message, LogSeverity.Error)
-                postMessage(message, isError = true)
-            }
+            val result = shareCoordinator.saveMasterBlend(master)
+            appendLog(null, result.logMessage, result.severity)
+            messageCenter.post(viewModelScope, result.userMessage, isError = result.isError)
         }
     }
 
@@ -804,20 +462,13 @@ class GifVisionViewModel(
         val outputPath = targetStream.generatedGifPath
         if (outputPath.isNullOrBlank()) {
             appendLog(layerId, LogCopy.saveBlockedStreamNotRendered(stream.name), LogSeverity.Warning)
-            postMessage("Generate Stream ${stream.name} before saving.", isError = true)
+            messageCenter.post(viewModelScope, "Generate Stream ${stream.name} before saving.", isError = true)
             return
         }
         viewModelScope.launch {
-            runCatching {
-                val displayName = "${layer.title.replace(" ", "_")}_Stream_${stream.name}"
-                val destination = mediaRepository.exportToDownloads(outputPath, displayName)
-                appendLog(layerId, "Stream ${stream.name} saved to ${destination}")
-                postMessage("Saved Stream ${stream.name} GIF to Downloads")
-            }.onFailure { throwable ->
-                val message = throwable.message ?: "Unable to save Stream ${stream.name}"
-                appendLog(layerId, message, LogSeverity.Error)
-                postMessage(message, isError = true)
-            }
+            val result = shareCoordinator.saveStream(layer, stream)
+            appendLog(layerId, result.logMessage, result.severity)
+            messageCenter.post(viewModelScope, result.userMessage, isError = result.isError)
         }
     }
 
@@ -841,34 +492,6 @@ class GifVisionViewModel(
     }
 
     /** Clears the imported media for [layerId] while resetting dependent render state. */
-    private fun clearLayerMedia(layerId: Int) {
-        updateLayer(layerId) { layer ->
-            layer.copy(
-                sourceClip = null,
-                streamA = layer.streamA.resetForRemoval(),
-                streamB = layer.streamB.resetForRemoval(),
-                blendState = layer.blendState.copy(
-                    blendedGifPath = null,
-                    isGenerating = false
-                )
-            )
-        }
-    }
-
-    /** Resets a [Stream] to its pristine state after the backing clip has been removed. */
-    private fun Stream.resetForRemoval(): Stream = copy(
-        adjustments = AdjustmentSettings(),
-        sourcePreviewPath = null,
-        generatedGifPath = null,
-        isGenerating = false,
-        lastRenderTimestamp = null,
-        playbackPositionMs = 0L,
-        isPlaying = false,
-        trimStartMs = 0L,
-        trimEndMs = 0L,
-        previewThumbnail = null
-    )
-
     /** Helper that applies a mutation to a specific stream within a layer. */
     private fun updateStream(
         layerId: Int,
@@ -949,40 +572,6 @@ class GifVisionViewModel(
         )
     }
 
-    private fun adjustForClipDefaults(
-        adjustments: AdjustmentSettings,
-        clip: SourceClip
-    ): Pair<AdjustmentSettings, List<String>> {
-        var updated = adjustments
-        val warnings = mutableListOf<String>()
-        val durationMs = clip.durationMs ?: 0L
-        val pixelCount = (clip.width ?: 0) * (clip.height ?: 0)
-        val sizeBytes = clip.sizeBytes ?: 0L
-        val isLongClip = durationMs > LONG_CLIP_WARNING_MS
-        val isLargeFile = sizeBytes > LARGE_CLIP_BYTES
-        val isHighResolution = pixelCount > HIGH_RES_PIXEL_THRESHOLD
-
-        if ((isLongClip || isLargeFile || isHighResolution) && adjustments.resolutionPercent > OVERSIZE_RESOLUTION) {
-            updated = updated.copy(resolutionPercent = OVERSIZE_RESOLUTION)
-            warnings += "Large clip detected – starting at ${(OVERSIZE_RESOLUTION * 100).roundToInt()}% resolution to protect output size."
-        }
-
-        if (adjustments.frameRate > MAX_STREAM_FPS) {
-            updated = updated.copy(frameRate = MAX_STREAM_FPS)
-            warnings += "Frame rate capped at ${MAX_STREAM_FPS.roundToInt()} fps for share compatibility."
-        }
-
-        if (isLargeFile) {
-            warnings += "Source file weighs ${Formatter.formatShortFileSize(getApplication<Application>(), sizeBytes)}; consider trimming to avoid oversized GIFs."
-        }
-
-        if (isLongClip) {
-            warnings += "Clip longer than ${LONG_CLIP_WARNING_MS / 1000}s detected – long renders may be slowed."
-        }
-
-        return updated to warnings.distinct()
-    }
-
     private fun parseHashtags(input: String): List<String> {
         if (input.isBlank()) return emptyList()
         val tokens = input.split(',', ' ', '\n', '\t')
@@ -997,17 +586,6 @@ class GifVisionViewModel(
             }
         }
         return result.toList()
-    }
-
-    private fun deriveDisplayName(path: String): String {
-        val fileName = File(path).nameWithoutExtension
-        return if (fileName.isNotBlank()) fileName else "gifvision_master"
-    }
-
-    private fun postMessage(message: String, isError: Boolean = false) {
-        if (!_uiMessages.tryEmit(UiMessage(message, isError))) {
-            viewModelScope.launch { _uiMessages.emit(UiMessage(message, isError)) }
-        }
     }
 
     private fun refreshValidationForLayer(layer: Layer) {
@@ -1027,20 +605,7 @@ class GifVisionViewModel(
     }
 
     private fun refreshMasterBlendValidation() {
-        val reasons = mutableListOf<String>()
-        val state = _uiState.value
-        if (state.layers.any { it.blendState.blendedGifPath.isNullOrBlank() }) {
-            reasons += "Blend each layer before attempting the master mix"
-        }
-        if (state.masterBlend.opacity !in 0f..1f) {
-            reasons += "Master blend opacity must remain between 0 and 1"
-        }
-        detectUnsupportedMasterBlend(state)?.let { reasons += it }
-        _masterBlendValidation.value = if (reasons.isEmpty()) {
-            MasterBlendValidation.Ready
-        } else {
-            MasterBlendValidation.Blocked(reasons)
-        }
+        _masterBlendValidation.value = validateMasterBlend(_uiState.value)
     }
 
     private fun updateMasterBlendAvailability() {
@@ -1053,61 +618,6 @@ class GifVisionViewModel(
             }
         }
         refreshMasterBlendValidation()
-    }
-
-    /** Queries the system for metadata and a preview frame tied to [uri]. */
-    private fun loadClipMetadata(uri: Uri): ClipMetadata {
-        var displayName: String? = null
-        var sizeBytes: Long? = null
-        var lastModified: Long? = null
-        val projection = arrayOf(
-            OpenableColumns.DISPLAY_NAME,
-            OpenableColumns.SIZE,
-            DocumentsContract.Document.COLUMN_LAST_MODIFIED
-        )
-        contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (nameIndex >= 0) displayName = cursor.getString(nameIndex)
-                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) sizeBytes = cursor.getLong(sizeIndex)
-                val modifiedIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
-                if (modifiedIndex >= 0 && !cursor.isNull(modifiedIndex)) {
-                    lastModified = cursor.getLong(modifiedIndex)
-                }
-            }
-        }
-
-        val retriever = MediaMetadataRetriever()
-        var durationMs: Long? = null
-        var width: Int? = null
-        var height: Int? = null
-        var frame: Bitmap? = null
-        try {
-            retriever.setDataSource(getApplication<Application>(), uri)
-            durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong()
-            width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt()
-            height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt()
-            frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-        } catch (ignored: RuntimeException) {
-            // Some streams (e.g. remote URLs or unsupported codecs) may fail to provide frames.
-        } finally {
-            retriever.release()
-        }
-
-        val mimeType = contentResolver.getType(uri)
-
-        return ClipMetadata(
-            uri = uri,
-            displayName = displayName,
-            mimeType = mimeType,
-            sizeBytes = sizeBytes,
-            durationMs = durationMs,
-            width = width,
-            height = height,
-            lastModified = lastModified,
-            thumbnailBitmap = frame
-        )
     }
 
     private fun logValidationFailure(layerId: Int?, reasons: List<String>) {
@@ -1141,64 +651,6 @@ class GifVisionViewModel(
         return validateLayerBlend(layer)
     }
 
-    private fun validateStream(layer: Layer, stream: Stream): StreamValidation {
-        val errors = mutableListOf<String>()
-        if (layer.sourceClip?.uri == null) {
-            errors += "${layer.title}: select a source clip before rendering"
-        }
-        if (stream.adjustments.resolutionPercent <= 0f) {
-            errors += "Resolution must be greater than 0%"
-        }
-        if (stream.adjustments.frameRate <= 0f) {
-            errors += "Frame rate must be positive"
-        }
-        if (stream.adjustments.maxColors !in 2..256) {
-            errors += "Color palette must be between 2 and 256 colors"
-        }
-        if (stream.adjustments.clipDurationSeconds <= 0f) {
-            errors += "Clip duration must be positive"
-        }
-        return if (errors.isEmpty()) StreamValidation.Valid else StreamValidation.Error(errors)
-    }
-
-    private fun validateLayerBlend(layer: Layer): LayerBlendValidation {
-        val errors = mutableListOf<String>()
-        val streamAReady = !layer.streamA.generatedGifPath.isNullOrBlank()
-        val streamBReady = !layer.streamB.generatedGifPath.isNullOrBlank()
-        if (!streamAReady && !streamBReady) {
-            errors += "Render Stream A or Stream B before blending"
-        }
-        if (layer.blendState.opacity !in 0f..1f) {
-            errors += "Layer opacity must remain between 0 and 1"
-        }
-        detectUnsupportedLayerBlend(layer)?.let { errors += it }
-        return if (errors.isEmpty()) LayerBlendValidation.Ready else LayerBlendValidation.Blocked(errors)
-    }
-
-    private fun detectUnsupportedLayerBlend(layer: Layer): String? {
-        val colorSensitiveModes = setOf(
-            GifVisionBlendMode.Color,
-            GifVisionBlendMode.Hue,
-            GifVisionBlendMode.Saturation,
-            GifVisionBlendMode.Luminosity
-        )
-        val negateEnabled = layer.streamA.adjustments.negateColors || layer.streamB.adjustments.negateColors
-        return if (layer.blendState.mode in colorSensitiveModes && negateEnabled) {
-            "${layer.title}: ${layer.blendState.mode.displayName} is incompatible with the Negate Colors filter"
-        } else {
-            null
-        }
-    }
-
-    private fun detectUnsupportedMasterBlend(state: GifVisionUiState): String? {
-        val layerUsesDifference = state.layers.any { it.blendState.mode == GifVisionBlendMode.Difference }
-        return if (layerUsesDifference && state.masterBlend.mode == GifVisionBlendMode.ColorDodge) {
-            "Master blend Color Dodge cannot combine with Difference layer blends"
-        } else {
-            null
-        }
-    }
-
     /** Snapshot describing a single layer for Compose consumers. */
     data class LayerUiState(
         val layer: Layer,
@@ -1207,30 +659,7 @@ class GifVisionViewModel(
         val layerBlendValidation: LayerBlendValidation
     )
 
-    /**
-     * Metadata payload emitted by [loadClipMetadata]. The view-model converts this object into the
-     * immutable [SourceClip] consumed by Compose after converting the cached bitmap to
-     * [androidx.compose.ui.graphics.ImageBitmap].
-     */
-    private data class ClipMetadata(
-        val uri: Uri,
-        val displayName: String?,
-        val mimeType: String?,
-        val sizeBytes: Long?,
-        val durationMs: Long?,
-        val width: Int?,
-        val height: Int?,
-        val lastModified: Long?,
-        val thumbnailBitmap: Bitmap?
-    )
-
     companion object {
-        private const val LONG_CLIP_WARNING_MS = 30_000L
-        private const val LARGE_CLIP_BYTES: Long = 50L * 1024 * 1024
-        private const val HIGH_RES_PIXEL_THRESHOLD = 2_073_600 // 1080p worth of pixels
-        private const val OVERSIZE_RESOLUTION = 0.6f
-        private const val MAX_STREAM_FPS = 30f
-
         /**
          * Factory for creating GifVisionViewModel instances with default dependencies.
          * Required because the ViewModel has multiple constructor parameters that the

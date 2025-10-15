@@ -14,6 +14,7 @@ import com.gifvision.app.ui.components.BlendModeDropdown
 import com.gifvision.app.ui.components.BlendOpacitySlider
 import com.gifvision.app.ui.components.BlendPreviewThumbnail
 import com.gifvision.app.ui.components.GenerateBlendButton
+import com.gifvision.app.ui.resources.LayerCopy
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.Layer
 
@@ -37,21 +38,21 @@ internal fun BlendPreviewCard(
 
     ElevatedCard {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(text = "Blend Preview", style = MaterialTheme.typography.titleLarge)
+            Text(text = LayerCopy.BLEND_PREVIEW_TITLE, style = MaterialTheme.typography.titleLarge)
 
             when {
                 streamAReady && streamBReady -> Unit
                 streamAReady || streamBReady -> {
                     val readyStream = if (streamAReady) "Stream A" else "Stream B"
                     Text(
-                        text = "$readyStream is ready. Generating a blend will reuse it without combining streams.",
+                        text = LayerCopy.singleStreamReady(readyStream),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 else -> {
                     Text(
-                        text = "Render Stream A or Stream B to unlock blending.",
+                        text = LayerCopy.BLEND_REQUIREMENT_HINT,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

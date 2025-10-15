@@ -95,3 +95,26 @@
   - Move validation helper functions (stream, layer, master) into the new `ui/state/validation` package and adjust the view-model to delegate (Phase 2).
   - Outline coordinator scaffolding (e.g., ClipImporter or MessageCenter) to continue Phase 2 delegation work.
   - Continue tracking the missing Android SDK requirement so automated tests can run locally once provisioned.
+
+## Session 2025-10-16 - Start
+- Wrapping up outstanding Phase 1 extractions (layout metrics + shared layer copy) before advancing the coordinator work.
+- Current completion estimates carried forward:
+  - Phase 1: 90%
+  - Phase 2: 10%
+  - Phase 3: 0%
+  - Phase 4: 0%
+
+## Session 2025-10-16 - End
+- Finalized Phase 1 by introducing `LayoutMetrics`/`layoutMetricsFor` and `LayerCopy`, then updated layer/master screens and app scaffolding to consume the shared spacing + copy helpers.
+- Kicked off Phase 2 by wiring `GifVisionDependencies`, `MessageCenter`, `ClipImporter`, `RenderScheduler`, `ShareCoordinator`, and standalone validation utilities, refactoring `GifVisionViewModel` to delegate to the new helpers while preserving its external API.
+- Re-ran `./gradlew test --console=plain` (fails: missing Android SDK) to keep the tooling gap documented post-refactor.
+- Updated completion estimates:
+  - Phase 1: 100% (all planned extractions and shared resources landed).
+  - Phase 2: 60% (core coordinators, dependency surface, and validation utilities established; follow-ups include deeper coordinator coverage tests/documentation).
+  - Phase 3: 0%
+  - Phase 4: 0%
+- TODOs for next session:
+  - Continue Phase 2 by covering remaining coordinator scenarios (e.g., cancellation flows, message dedupe rules) and aligning unit boundaries for easier testing.
+  - Begin outlining Phase 3 reusable component adoption (blend/log/preview consolidation) now that coordinators are in place.
+  - Plan ENGINEGUIDE updates to describe the new dependency + coordinator architecture for Phase 4.
+  - Maintain the open action to provision the Android SDK so `./gradlew test` can succeed locally.

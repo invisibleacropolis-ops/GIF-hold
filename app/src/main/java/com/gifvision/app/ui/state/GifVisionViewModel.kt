@@ -24,6 +24,7 @@ import com.gifvision.app.media.ShareResult
 import com.gifvision.app.media.StreamProcessingRequest
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import com.gifvision.app.ui.resources.LogCopy
 import com.gifvision.app.ui.state.LogEntry
 import com.gifvision.app.ui.state.LogSeverity
 import kotlinx.coroutines.Dispatchers
@@ -103,7 +104,7 @@ class GifVisionViewModel(
             } catch (security: SecurityException) {
                 appendLog(
                     layerId,
-                    "Access revoked for ${uri.lastPathSegment ?: uri}: ${security.message ?: "permission revoked"}",
+                    LogCopy.accessRevoked(uri, security.message),
                     LogSeverity.Error
                 )
                 clearLayerMedia(layerId)
@@ -121,7 +122,7 @@ class GifVisionViewModel(
             } catch (security: SecurityException) {
                 appendLog(
                     layerId,
-                    "Storage permission revoked for ${uri.lastPathSegment ?: uri}: ${security.message ?: "permission revoked"}",
+                    LogCopy.storagePermissionRevoked(uri, security.message),
                     LogSeverity.Error
                 )
                 clearLayerMedia(layerId)
@@ -467,7 +468,7 @@ class GifVisionViewModel(
 
                     is GifProcessingEvent.Progress -> {
                         val percent = (event.progress * 100).roundToInt()
-                        appendLog(layerId, event.message ?: "${event.jobId} progress $percent%")
+                        appendLog(layerId, event.message ?: LogCopy.jobProgress(event.jobId, percent))
                     }
 
                     is GifProcessingEvent.Completed -> {
@@ -480,7 +481,7 @@ class GifVisionViewModel(
                             )
                         }
                         event.logs.forEach { appendLog(layerId, it) }
-                        appendLog(layerId, "${event.jobId} complete -> ${asset.path}")
+                        appendLog(layerId, LogCopy.jobComplete(event.jobId, asset.path))
                         
                         // Clean up temporary file
                         try {
@@ -552,13 +553,13 @@ class GifVisionViewModel(
             val fileB = java.io.File(streamBPath)
 
             if (!fileA.exists()) {
-                appendLog(layerId, "Stream A GIF file not found: $streamAPath", LogSeverity.Error)
+                appendLog(layerId, LogCopy.gifFileNotFound("Stream A", streamAPath), LogSeverity.Error)
                 postMessage("Stream A GIF file missing. Try regenerating it.", isError = true)
                 return
             }
 
             if (!fileB.exists()) {
-                appendLog(layerId, "Stream B GIF file not found: $streamBPath", LogSeverity.Error)
+                appendLog(layerId, LogCopy.gifFileNotFound("Stream B", streamBPath), LogSeverity.Error)
                 postMessage("Stream B GIF file missing. Try regenerating it.", isError = true)
                 return
             }
@@ -582,7 +583,7 @@ class GifVisionViewModel(
                             is GifProcessingEvent.Started -> event.message?.let { appendLog(layerId, it) }
                             is GifProcessingEvent.Progress -> {
                                 val percent = (event.progress * 100).roundToInt()
-                                appendLog(layerId, event.message ?: "${event.jobId} progress $percent%")
+                                appendLog(layerId, event.message ?: LogCopy.jobProgress(event.jobId, percent))
                             }
                             is GifProcessingEvent.Completed -> {
                                 val asset = mediaRepository.storeLayerBlend(layerId, event.outputPath)
@@ -595,7 +596,7 @@ class GifVisionViewModel(
                                     )
                                 }
                                 event.logs.forEach { appendLog(layerId, it) }
-                                appendLog(layerId, "${event.jobId} complete -> ${asset.path}")
+                                appendLog(layerId, LogCopy.jobComplete(event.jobId, asset.path))
                                 updateMasterBlendAvailability()
                             }
                             is GifProcessingEvent.Failed -> {
@@ -627,7 +628,7 @@ class GifVisionViewModel(
                         current.copy(blendState = current.blendState.copy(isGenerating = false))
                     }
                     val message = e.message ?: "Unknown error during blend"
-                    appendLog(layerId, "Blend error: $message", LogSeverity.Error)
+                    appendLog(layerId, LogCopy.blendError(message), LogSeverity.Error)
                     postMessage("Blend failed: $message", isError = true)
                 }
             }
@@ -639,7 +640,7 @@ class GifVisionViewModel(
         val sourceFile = java.io.File(sourcePath!!)
 
         if (!sourceFile.exists()) {
-            appendLog(layerId, "$readyStreamLabel GIF file not found: $sourcePath", LogSeverity.Error)
+            appendLog(layerId, LogCopy.gifFileNotFound(readyStreamLabel, sourcePath), LogSeverity.Error)
             postMessage("$readyStreamLabel GIF file missing. Try regenerating it.", isError = true)
             return
         }
@@ -665,7 +666,7 @@ class GifVisionViewModel(
                     current.copy(blendState = current.blendState.copy(isGenerating = false))
                 }
                 val message = e.message ?: "Unknown error during blend"
-                appendLog(layerId, "Blend error: $message", LogSeverity.Error)
+                appendLog(layerId, LogCopy.blendError(message), LogSeverity.Error)
                 postMessage("Blend failed: $message", isError = true)
             }
         }
@@ -698,7 +699,7 @@ class GifVisionViewModel(
                     is GifProcessingEvent.Started -> event.message?.let { appendLog(null, it) }
                     is GifProcessingEvent.Progress -> {
                         val percent = (event.progress * 100).roundToInt()
-                        appendLog(null, event.message ?: "${event.jobId} progress $percent%")
+                        appendLog(null, event.message ?: LogCopy.jobProgress(event.jobId, percent))
                     }
                     is GifProcessingEvent.Completed -> {
                         val asset = mediaRepository.storeMasterBlend(event.outputPath)
@@ -711,7 +712,7 @@ class GifVisionViewModel(
                             )
                         }
                         event.logs.forEach { appendLog(null, it) }
-                        appendLog(null, "${event.jobId} complete -> ${asset.path}")
+                        appendLog(null, LogCopy.jobComplete(event.jobId, asset.path))
                     }
                     is GifProcessingEvent.Failed -> {
                         setMasterBlendGenerating(false)
@@ -740,7 +741,7 @@ class GifVisionViewModel(
         val master = _uiState.value.masterBlend
         val outputPath = master.masterGifPath
         if (outputPath.isNullOrBlank()) {
-            appendLog(null, "Share blocked – master blend not ready", LogSeverity.Warning)
+            appendLog(null, LogCopy.shareBlockedMasterNotReady(), LogSeverity.Warning)
             postMessage("Render the master blend before sharing.", isError = true)
             return
         }
@@ -773,7 +774,7 @@ class GifVisionViewModel(
         val master = _uiState.value.masterBlend
         val outputPath = master.masterGifPath
         if (outputPath.isNullOrBlank()) {
-            appendLog(null, "Save blocked – master blend not ready", LogSeverity.Warning)
+            appendLog(null, LogCopy.saveBlockedMasterNotReady(), LogSeverity.Warning)
             postMessage("Render the master blend before saving.", isError = true)
             return
         }
@@ -799,7 +800,7 @@ class GifVisionViewModel(
         }
         val outputPath = targetStream.generatedGifPath
         if (outputPath.isNullOrBlank()) {
-            appendLog(layerId, "Save blocked – Stream ${stream.name} not rendered yet", LogSeverity.Warning)
+            appendLog(layerId, LogCopy.saveBlockedStreamNotRendered(stream.name), LogSeverity.Warning)
             postMessage("Generate Stream ${stream.name} before saving.", isError = true)
             return
         }

@@ -48,3 +48,26 @@
   - Begin identifying candidates for validation and coordinator extraction ahead of Phase 2.
   - Prepare ENGINEGUIDE updates outlining the new layout package for Phase 4 documentation.
   - Re-attempt `./gradlew test` after addressing Android SDK availability or capturing the requirement for tooling setup.
+
+## Session 2025-02-16 - Start
+- Resuming Phase 1 with emphasis on consolidating shared log and picker copy into reusable helpers per PlanDoc section 3.4.
+- Carrying forward completion estimates:
+  - Phase 1: 70%
+  - Phase 2: 0%
+  - Phase 3: 0%
+  - Phase 4: 0%
+
+## Session 2025-02-16 - End
+- Introduced `ui/resources/LogCopy` to centralize frequently reused log strings and formatting helpers, then updated `LayerScreen` and `GifVisionViewModel` to consume the shared copy without altering behaviour.
+- Added `ui/resources/MediaResources` to host the shared video MIME picker array so future import flows draw from a single definition.
+- Re-ran `./gradlew test` (still blocked by missing Android SDK) to document the environment gap alongside the new extractions.
+- Updated completion estimates:
+  - Phase 1: 80% (log/picker copy extracted; outstanding tasks include remaining constant consolidation and scaffolding for render job IDs).
+  - Phase 2: 0%
+  - Phase 3: 0%
+  - Phase 4: 0%
+- TODOs for next session:
+  - Continue Phase 1 by relocating additional repeated UI strings (e.g., log panel titles, preview empty states) and preparing the render job registry placeholder.
+  - Start drafting the structure for validation utility extraction targeted for Phase 2.
+  - Plan ENGINEGUIDE updates covering the new `ui/resources` package for later documentation work in Phase 4.
+  - Maintain the outstanding action to provision the Android SDK so `./gradlew test` succeeds locally.

@@ -25,6 +25,7 @@ import com.gifvision.app.ui.state.Layer
 import com.gifvision.app.ui.state.LogSeverity
 import com.gifvision.app.ui.state.StreamSelection
 import com.gifvision.app.ui.resources.LogCopy
+import com.gifvision.app.ui.resources.PanelCopy
 import com.gifvision.app.ui.resources.VIDEO_MIME_TYPES
 
 /**
@@ -142,7 +143,7 @@ fun LayerScreen(
                         onGenerateBlend = onGenerateBlend
                     )
                     FfmpegLogPanel(
-                        title = "${layerState.title} FFmpeg Logs",
+                        title = PanelCopy.layerLogTitle(layerState.title),
                         logs = layerState.ffmpegLogs,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -202,7 +203,7 @@ fun LayerScreen(
             )
 
             FfmpegLogPanel(
-                title = "${layerState.title} FFmpeg Logs",
+                title = PanelCopy.layerLogTitle(layerState.title),
                 logs = layerState.ffmpegLogs,
                 modifier = Modifier.fillMaxWidth()
             )

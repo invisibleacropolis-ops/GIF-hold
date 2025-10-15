@@ -61,7 +61,7 @@ data class StreamProcessingRequest(
     val trimStartMs: Long,
     val trimEndMs: Long,
     val suggestedOutputPath: String? = null,
-    val jobId: String = "layer-${layerId}-stream-${stream.name.lowercase()}-render"
+    val jobId: String = RenderJobRegistry.streamRenderId(layerId, stream)
 )
 
 /** Payload describing a layer blend job. */
@@ -72,7 +72,7 @@ data class LayerBlendRequest(
     val blendMode: GifVisionBlendMode,
     val opacity: Float,
     val suggestedOutputPath: String? = null,
-    val jobId: String = "layer-${layerId}-blend-${blendMode.name.lowercase()}"
+    val jobId: String = RenderJobRegistry.layerBlendId(layerId, blendMode)
 )
 
 /** Payload describing the final master blend job. */
@@ -82,7 +82,7 @@ data class MasterBlendRequest(
     val blendMode: GifVisionBlendMode,
     val opacity: Float,
     val suggestedOutputPath: String? = null,
-    val jobId: String = "master-blend-${blendMode.name.lowercase()}-${UUID.randomUUID()}"
+    val jobId: String = RenderJobRegistry.masterBlendId(blendMode)
 )
 
 /**

@@ -118,3 +118,27 @@
   - Begin outlining Phase 3 reusable component adoption (blend/log/preview consolidation) now that coordinators are in place.
   - Plan ENGINEGUIDE updates to describe the new dependency + coordinator architecture for Phase 4.
   - Maintain the open action to provision the Android SDK so `./gradlew test` can succeed locally.
+
+## Session 2025-10-17 - Start
+- Continuing Phase 2 work focused on the coordinator/message abstractions noted in the prior TODO list.
+- Current completion estimates carried forward:
+  - Phase 1: 100%
+  - Phase 2: 60%
+  - Phase 3: 0%
+  - Phase 4: 0%
+
+## Session 2025-10-17 - End
+- Added a deduplicating window to `MessageCenter` so repeated warnings surface once while still keeping emission APIs lightweight for future unit coverage.
+- Extended `RenderScheduler` with active job tracking, cancellation hooks, and consistent job ID registration so stream/layer/master renders can be cancelled without leaking coroutine handles.
+- Introduced view-model cancellation entry points that delegate to the scheduler while logging when no active job exists, aligning unit seams for later testing.
+- Re-ran `./gradlew test --console=plain` (fails: missing Android SDK) to document the persistent tooling requirement after the coordinator updates.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 75% (message dedupe + cancellation flows covered; remaining work includes coordinator unit scaffolding and ShareCoordinator edge cases).
+  - Phase 3: 0%
+  - Phase 4: 0%
+- TODOs for next session:
+  - Finish Phase 2 by adding coordinator/message unit seams (e.g., injectable clocks, cancellation tests) and reviewing ShareCoordinator persistence flows.
+  - Kick off Phase 3 reusable component adoption starting with blend/log shared wrappers once coordinator APIs settle.
+  - Begin drafting ENGINEGUIDE updates capturing the coordinator surface and cancellation flows for Phase 4 documentation.
+  - Continue tracking the missing Android SDK setup so automated tests can execute successfully.

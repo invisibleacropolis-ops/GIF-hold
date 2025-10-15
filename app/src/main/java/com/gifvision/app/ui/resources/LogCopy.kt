@@ -33,6 +33,14 @@ internal object LogCopy {
         return "$jobId complete -> $path"
     }
 
+    fun jobCancelled(jobId: String): String {
+        return "$jobId cancelled"
+    }
+
+    fun jobCancellationIgnored(jobId: String): String {
+        return "$jobId cancellation ignored – job not running"
+    }
+
     fun blendError(message: String?): String {
         return "Blend error: $message"
     }

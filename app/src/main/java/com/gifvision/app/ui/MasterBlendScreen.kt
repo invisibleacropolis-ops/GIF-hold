@@ -64,6 +64,7 @@ import com.gifvision.app.ui.state.MasterBlendConfig
 import com.gifvision.app.ui.state.GifLoopMetadata
 import com.gifvision.app.ui.state.PlatformPreview
 import com.gifvision.app.ui.state.ShareSetupState
+import java.io.File
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
@@ -92,24 +93,6 @@ fun MasterBlendScreen(
     val scrollState = rememberScrollState()
     val controlsEnabled = state.isEnabled && !state.isGenerating
     val context = LocalContext.current
-    val imageRequest = remember(state.masterGifPath) {
-        state.masterGifPath?.let { path ->
-            val gifFile = java.io.File(path)
-            ImageRequest.Builder(context)
-                .data(gifFile)
-                .crossfade(true)
-                .apply {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        decoderFactory(ImageDecoderDecoder.Factory())
-                    } else {
-                        decoderFactory(GifDecoder.Factory())
-                    }
-                }
-                .build()
-        }
-    }
-    val painter = rememberAsyncImagePainter(model = imageRequest)
-    val painterState = painter.state
     val saveEnabled = state.masterGifPath != null && !state.isGenerating
     val shareEnabled = state.masterGifPath != null && !state.isGenerating && !state.shareSetup.isPreparingShare
     val generateLabel = if (state.masterGifPath == null) "Generate Master Blend" else "Regenerate Master Blend"
@@ -235,44 +218,57 @@ fun MasterBlendScreen(
     val previewCard: @Composable () -> Unit = {
         Card(colors = CardDefaults.cardColors()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(text = "Master Preview", style = MaterialTheme.typography.titleLarge)
+                Text(text = "Master Blend Preview", style = MaterialTheme.typography.titleLarge)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(16f / 9f), // Use 16:9 aspect ratio to match typical video
+                        .aspectRatio(16f / 9f),
                     contentAlignment = Alignment.Center
                 ) {
-                    when {
-                        state.masterGifPath == null -> {
-                            Text(
-                                text = "Generate Master Blend",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
+                    if (state.masterGifPath.isNullOrBlank()) {
+                        Text(
+                            text = "Generate Master Blend to preview",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        val imageRequest = remember(state.masterGifPath) {
+                            val gifFile = File(state.masterGifPath)
+                            ImageRequest.Builder(context)
+                                .data(gifFile)
+                                .crossfade(true)
+                                .apply {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                        decoderFactory(ImageDecoderDecoder.Factory())
+                                    } else {
+                                        decoderFactory(GifDecoder.Factory())
+                                    }
+                                }
+                                .build()
                         }
-
-                        painterState is AsyncImagePainter.State.Loading -> {
-                            CircularProgressIndicator()
-                        }
-
-                        painterState is AsyncImagePainter.State.Error -> {
-                            Text(
-                                text = painterState.result.throwable.message
-                                    ?: "Preview failed to load",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        else -> {
-                            Image(
-                                painter = painter,
-                                contentDescription = "Master blend preview",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                        val painter = rememberAsyncImagePainter(model = imageRequest)
+                        when (painter.state) {
+                            is AsyncImagePainter.State.Loading -> {
+                                CircularProgressIndicator()
+                            }
+                            is AsyncImagePainter.State.Error -> {
+                                val error = (painter.state as AsyncImagePainter.State.Error).result.throwable
+                                Text(
+                                    text = error.message ?: "Preview failed to load",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            else -> {
+                                Image(
+                                    painter = painter,
+                                    contentDescription = "Master blend preview",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
                         }
                     }
                 }

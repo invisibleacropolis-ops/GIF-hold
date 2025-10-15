@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.gifvision.app.media.RenderJobRegistry
 import com.gifvision.app.ui.resources.LogCopy
 import com.gifvision.app.ui.state.coordinators.ClipImportOutcome
 import com.gifvision.app.ui.state.coordinators.ClipImporter
@@ -415,6 +416,29 @@ class GifVisionViewModel(
             },
             onLog = { message, severity -> appendLog(null, message, severity) }
         )
+    }
+
+    fun cancelStreamRender(layerId: Int, stream: StreamSelection) {
+        if (!renderScheduler.cancelStreamRender(layerId, stream)) {
+            val jobId = RenderJobRegistry.streamRenderId(layerId, stream)
+            appendLog(layerId, LogCopy.jobCancellationIgnored(jobId))
+        }
+    }
+
+    fun cancelLayerBlend(layerId: Int) {
+        val layer = _uiState.value.layers.firstOrNull { it.id == layerId } ?: return
+        if (!renderScheduler.cancelLayerBlend(layer.id)) {
+            val jobId = RenderJobRegistry.layerBlendId(layer.id, layer.blendState.mode)
+            appendLog(layerId, LogCopy.jobCancellationIgnored(jobId))
+        }
+    }
+
+    fun cancelMasterBlend() {
+        val mode = _uiState.value.masterBlend.mode
+        if (!renderScheduler.cancelMasterBlend()) {
+            val jobId = RenderJobRegistry.masterBlendId(mode)
+            appendLog(null, LogCopy.jobCancellationIgnored(jobId))
+        }
     }
 
     /** Shares the master blend through the injected [ShareRepository]. */

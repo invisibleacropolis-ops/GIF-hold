@@ -6,6 +6,7 @@ import com.gifvision.app.media.GifProcessingCoordinator
 import com.gifvision.app.media.GifProcessingEvent
 import com.gifvision.app.media.LayerBlendRequest
 import com.gifvision.app.media.MediaRepository
+import com.gifvision.app.media.RenderJobRegistry
 import com.gifvision.app.media.MasterBlendRequest
 import com.gifvision.app.media.StreamProcessingRequest
 import com.gifvision.app.ui.resources.LogCopy
@@ -17,8 +18,10 @@ import com.gifvision.app.ui.state.StreamSelection
 import com.gifvision.app.ui.state.messages.MessageCenter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -40,7 +43,9 @@ internal class RenderScheduler(
         onStreamCompleted: (path: String, recordedAt: Long) -> Unit,
         onLog: (String, LogSeverity) -> Unit
     ) {
-        scope.launch {
+        val jobId = RenderJobRegistry.streamRenderId(layerId, streamSelection)
+        var cancellationReported = false
+        val job = scope.launch {
             onGeneratingChange(true)
             val sourcePath = try {
                 copyUriToCache(sourceUri)
@@ -58,7 +63,8 @@ internal class RenderScheduler(
                         sourcePath = sourcePath,
                         adjustments = streamState.adjustments,
                         trimStartMs = streamState.trimStartMs,
-                        trimEndMs = streamState.trimEndMs
+                        trimEndMs = streamState.trimEndMs,
+                        jobId = jobId
                     )
                 ).collect { event ->
                     when (event) {
@@ -80,6 +86,7 @@ internal class RenderScheduler(
                             onLog("${event.jobId} failed: ${event.throwable.message}", LogSeverity.Error)
                         }
                         is GifProcessingEvent.Cancelled -> {
+                            cancellationReported = true
                             onGeneratingChange(false)
                             onLog("${event.jobId} cancelled by user", LogSeverity.Warning)
                         }
@@ -89,6 +96,14 @@ internal class RenderScheduler(
                 runCatching { File(sourcePath).delete() }
             }
         }
+        registerJob(
+            key = RenderJobKey.Stream(layerId, streamSelection),
+            jobId = jobId,
+            job = job,
+            onGeneratingChange = onGeneratingChange,
+            onLog = onLog,
+            wasCancellationReported = { cancellationReported }
+        )
     }
 
     fun requestLayerBlend(
@@ -129,7 +144,9 @@ internal class RenderScheduler(
                 LogSeverity.Info
             )
 
-            scope.launch {
+            val jobId = RenderJobRegistry.layerBlendId(layer.id, layer.blendState.mode)
+            var cancellationReported = false
+            val job = scope.launch {
                 onGeneratingChange(true)
                 try {
                     processingCoordinator.blendLayer(
@@ -139,7 +156,8 @@ internal class RenderScheduler(
                             streamBPath = streamBPath,
                             blendMode = layer.blendState.mode,
                             opacity = layer.blendState.opacity,
-                            suggestedOutputPath = layer.blendState.blendedGifPath
+                            suggestedOutputPath = layer.blendState.blendedGifPath,
+                            jobId = jobId
                         )
                     ).collect { event ->
                         when (event) {
@@ -162,6 +180,7 @@ internal class RenderScheduler(
                                 messageCenter.post(scope, "Blend failed: ${event.throwable.message}", isError = true)
                             }
                             is GifProcessingEvent.Cancelled -> {
+                                cancellationReported = true
                                 onGeneratingChange(false)
                                 onLog("${event.jobId} cancelled by user", LogSeverity.Warning)
                             }
@@ -174,6 +193,14 @@ internal class RenderScheduler(
                     messageCenter.post(scope, "Blend failed: $message", isError = true)
                 }
             }
+            registerJob(
+                key = RenderJobKey.LayerBlend(layer.id),
+                jobId = jobId,
+                job = job,
+                onGeneratingChange = onGeneratingChange,
+                onLog = onLog,
+                wasCancellationReported = { cancellationReported }
+            )
             return
         }
 
@@ -188,7 +215,9 @@ internal class RenderScheduler(
 
         onLog("$readyStreamLabel ready – copying ${sourceFile.name} into the blend preview", LogSeverity.Info)
 
-        scope.launch {
+        val jobId = RenderJobRegistry.layerBlendId(layer.id, layer.blendState.mode)
+        var cancellationReported = false
+        val job = scope.launch {
             onGeneratingChange(true)
             runCatching {
                 mediaRepository.storeLayerBlend(layer.id, sourcePath)
@@ -204,6 +233,14 @@ internal class RenderScheduler(
                 messageCenter.post(scope, "Blend failed: $message", isError = true)
             }
         }
+        registerJob(
+            key = RenderJobKey.LayerBlend(layer.id),
+            jobId = jobId,
+            job = job,
+            onGeneratingChange = onGeneratingChange,
+            onLog = onLog,
+            wasCancellationReported = { cancellationReported }
+        )
     }
 
     fun requestMasterBlend(
@@ -216,7 +253,9 @@ internal class RenderScheduler(
         val layerOne = state.layers.getOrNull(0)?.blendState?.blendedGifPath ?: return
         val layerTwo = state.layers.getOrNull(1)?.blendState?.blendedGifPath ?: return
 
-        scope.launch {
+        val jobId = RenderJobRegistry.masterBlendId(state.masterBlend.mode)
+        var cancellationReported = false
+        val job = scope.launch {
             onGeneratingChange(true)
             processingCoordinator.mergeMaster(
                 MasterBlendRequest(
@@ -224,7 +263,8 @@ internal class RenderScheduler(
                     layerTwoPath = layerTwo,
                     blendMode = state.masterBlend.mode,
                     opacity = state.masterBlend.opacity,
-                    suggestedOutputPath = state.masterBlend.masterGifPath
+                    suggestedOutputPath = state.masterBlend.masterGifPath,
+                    jobId = jobId
                 )
             ).collect { event ->
                 when (event) {
@@ -245,13 +285,83 @@ internal class RenderScheduler(
                         onLog("${event.jobId} failed: ${event.throwable.message}", LogSeverity.Error)
                     }
                     is GifProcessingEvent.Cancelled -> {
+                        cancellationReported = true
                         onGeneratingChange(false)
                         onLog("${event.jobId} cancelled by user", LogSeverity.Warning)
                     }
                 }
             }
         }
+        registerJob(
+            key = RenderJobKey.MasterBlend,
+            jobId = jobId,
+            job = job,
+            onGeneratingChange = onGeneratingChange,
+            onLog = onLog,
+            wasCancellationReported = { cancellationReported }
+        )
     }
+
+    fun cancelStreamRender(layerId: Int, stream: StreamSelection): Boolean {
+        return cancelJob(RenderJobKey.Stream(layerId, stream))
+    }
+
+    fun cancelLayerBlend(layerId: Int): Boolean {
+        return cancelJob(RenderJobKey.LayerBlend(layerId))
+    }
+
+    fun cancelMasterBlend(): Boolean {
+        return cancelJob(RenderJobKey.MasterBlend)
+    }
+
+    private fun cancelJob(key: RenderJobKey): Boolean {
+        val tracked = synchronized(activeJobs) { activeJobs[key] }
+        tracked?.let {
+            it.job.cancel()
+            return true
+        }
+        return false
+    }
+
+    private fun registerJob(
+        key: RenderJobKey,
+        jobId: String,
+        job: Job,
+        onGeneratingChange: (Boolean) -> Unit,
+        onLog: (String, LogSeverity) -> Unit,
+        wasCancellationReported: () -> Boolean
+    ) {
+        synchronized(activeJobs) {
+            activeJobs[key]?.job?.cancel()
+            activeJobs[key] = ActiveJob(jobId, job, wasCancellationReported)
+        }
+        job.invokeOnCompletion { throwable ->
+            synchronized(activeJobs) {
+                val tracked = activeJobs[key]
+                if (tracked?.job === job) {
+                    activeJobs.remove(key)
+                }
+            }
+            if (throwable is CancellationException && !wasCancellationReported()) {
+                onGeneratingChange(false)
+                onLog(LogCopy.jobCancelled(jobId), LogSeverity.Warning)
+            }
+        }
+    }
+
+    private data class ActiveJob(
+        val jobId: String,
+        val job: Job,
+        val wasCancellationReported: () -> Boolean
+    )
+
+    private sealed interface RenderJobKey {
+        data class Stream(val layerId: Int, val stream: StreamSelection) : RenderJobKey
+        data class LayerBlend(val layerId: Int) : RenderJobKey
+        data object MasterBlend : RenderJobKey
+    }
+
+    private val activeJobs = mutableMapOf<RenderJobKey, ActiveJob>()
 
     private suspend fun copyUriToCache(uri: Uri): String = withContext(Dispatchers.IO) {
         val tempFile = File(application.cacheDir, "temp_input_${System.currentTimeMillis()}.mp4")

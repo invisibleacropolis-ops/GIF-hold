@@ -18,6 +18,7 @@ import com.gifvision.app.ui.state.Stream
 import com.gifvision.app.ui.state.StreamSelection
 import com.gifvision.app.ui.state.messages.MessageCenter
 import java.io.File
+import java.io.InputStream
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +36,10 @@ internal class RenderScheduler(
     private val messageCenter: MessageCenter,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val timestampProvider: () -> Long = { System.currentTimeMillis() },
-    private val cacheDirectoryProvider: () -> File = { application.cacheDir }
+    private val cacheDirectoryProvider: () -> File = { application.cacheDir },
+    private val inputStreamProvider: (Uri) -> InputStream? = { uri ->
+        application.contentResolver.openInputStream(uri)
+    }
 ) {
 
     fun requestStreamRender(
@@ -388,7 +392,7 @@ internal class RenderScheduler(
 
     private suspend fun copyUriToCache(uri: Uri): String = withContext(ioDispatcher) {
         val tempFile = File(cacheDirectoryProvider(), "temp_input_${timestampProvider()}.mp4")
-        application.contentResolver.openInputStream(uri)?.use { input ->
+        inputStreamProvider(uri)?.use { input ->
             tempFile.outputStream().use { output -> input.copyTo(output) }
         }
         tempFile.absolutePath

@@ -79,7 +79,11 @@ import coil.request.ImageRequest
 import com.gifvision.app.ui.components.AdjustmentSlider
 import com.gifvision.app.ui.components.AdjustmentSwitch
 import com.gifvision.app.ui.components.AdjustmentValidation
+import com.gifvision.app.ui.components.BlendModeDropdown
+import com.gifvision.app.ui.components.BlendOpacitySlider
+import com.gifvision.app.ui.components.BlendPreviewThumbnail
 import com.gifvision.app.ui.components.FfmpegLogPanel
+import com.gifvision.app.ui.components.GenerateBlendButton
 import com.gifvision.app.ui.state.AdjustmentSettings
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.Layer
@@ -1170,155 +1174,6 @@ private fun BlendPreviewCard(
             }
 
             BlendPreviewThumbnail(path = layerState.blendState.blendedGifPath)
-        }
-    }
-}
-
-/**
- * Dropdown wrapper that exposes the available [GifVisionBlendMode] options. Hoisting the callback
- * keeps actual mode changes inside the state layer while Compose manages UI affordances and
- * accessibility semantics.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun BlendModeDropdown(
-    mode: GifVisionBlendMode,
-    enabled: Boolean,
-    onModeSelected: (GifVisionBlendMode) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { if (enabled) expanded = !expanded },
-        modifier = modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            value = mode.displayName,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            label = { Text("Blend Mode") },
-            trailingIcon = {
-                Icon(
-                    imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
-                    contentDescription = if (expanded) "Collapse blend options" else "Expand blend options"
-                )
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(type = androidx.compose.material3.MenuAnchorType.PrimaryNotEditable)
-        )
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            GifVisionBlendMode.entries.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option.displayName) },
-                    onClick = {
-                        expanded = false
-                        onModeSelected(option)
-                    }
-                )
-            }
-        }
-    }
-}
-
-/**
- * Opacity slider tuned for blend ratios. Values quantize to two decimal places so FFmpeg receives
- * stable `blend=all_opacity` inputs even when users scrub quickly.
- */
-@Composable
-private fun BlendOpacitySlider(
-    opacity: Float,
-    enabled: Boolean,
-    onOpacityChange: (Float) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    AdjustmentSlider(
-        label = "Opacity",
-        value = opacity,
-        onValueChange = { raw ->
-            val quantized = (raw * 100).roundToInt() / 100f
-            onOpacityChange(quantized)
-        },
-        valueRange = 0f..1f,
-        steps = 100,
-        enabled = enabled,
-        valueFormatter = { value -> "%.2f".format(value) },
-        supportingText = "0.00 hides Stream B · 1.00 fully overlays it",
-        modifier = modifier
-    )
-}
-
-/**
- * Primary CTA that dispatches the layer blend request once both stream renders are present. The
- * callback is hoisted to the view-model so failure/success flows can update state and logs.
- */
-@Composable
-private fun GenerateBlendButton(
-    enabled: Boolean,
-    onGenerate: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = onGenerate,
-        enabled = enabled,
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Text("Generate Blended GIF")
-    }
-}
-
-/**
- * Visualizes the last completed layer blend. When no blend exists the card explains how to unlock
- * the preview so the user is not left with an empty surface.
- */
-@Composable
-private fun BlendPreviewThumbnail(
-    path: String?,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f), // Use 16:9 aspect ratio to match typical video
-        contentAlignment = Alignment.Center
-    ) {
-        if (path.isNullOrBlank()) {
-            Text(
-                text = "No blended GIF yet",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-        } else {
-            val imageRequest = remember(path) {
-                val gifFile = File(path)
-                ImageRequest.Builder(context)
-                    .data(gifFile)
-                    .crossfade(true)
-                    .apply {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            decoderFactory(ImageDecoderDecoder.Factory())
-                        } else {
-                            decoderFactory(GifDecoder.Factory())
-                        }
-                    }
-                    .build()
-            }
-            val painter = rememberAsyncImagePainter(model = imageRequest)
-            Image(
-                painter = painter,
-                contentDescription = "Layer blend preview",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
         }
     }
 }

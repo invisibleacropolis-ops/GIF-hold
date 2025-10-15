@@ -217,6 +217,22 @@ fun MasterBlendScreen(
         Card(colors = CardDefaults.cardColors()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(text = "Master Blend Preview", style = MaterialTheme.typography.titleLarge)
+                
+                // Debug info
+                Text(
+                    text = "Path: ${state.masterGifPath ?: "null"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (state.masterGifPath != null) {
+                    val file = File(state.masterGifPath)
+                    Text(
+                        text = "File exists: ${file.exists()}, Size: ${file.length()} bytes",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -231,41 +247,50 @@ fun MasterBlendScreen(
                             textAlign = TextAlign.Center
                         )
                     } else {
-                        val imageRequest = remember(state.masterGifPath) {
-                            val gifFile = File(state.masterGifPath)
-                            ImageRequest.Builder(context)
-                                .data(gifFile)
-                                .crossfade(true)
-                                .apply {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                        decoderFactory(ImageDecoderDecoder.Factory())
-                                    } else {
-                                        decoderFactory(GifDecoder.Factory())
+                        val gifFile = File(state.masterGifPath)
+                        if (!gifFile.exists()) {
+                            Text(
+                                text = "File not found: ${state.masterGifPath}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            val imageRequest = remember(state.masterGifPath) {
+                                ImageRequest.Builder(context)
+                                    .data(gifFile)
+                                    .crossfade(true)
+                                    .apply {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                            decoderFactory(ImageDecoderDecoder.Factory())
+                                        } else {
+                                            decoderFactory(GifDecoder.Factory())
+                                        }
                                     }
+                                    .build()
+                            }
+                            val painter = rememberAsyncImagePainter(model = imageRequest)
+                            when (painter.state) {
+                                is AsyncImagePainter.State.Loading -> {
+                                    CircularProgressIndicator()
                                 }
-                                .build()
-                        }
-                        val painter = rememberAsyncImagePainter(model = imageRequest)
-                        when (painter.state) {
-                            is AsyncImagePainter.State.Loading -> {
-                                CircularProgressIndicator()
-                            }
-                            is AsyncImagePainter.State.Error -> {
-                                val error = (painter.state as AsyncImagePainter.State.Error).result.throwable
-                                Text(
-                                    text = error.message ?: "Preview failed to load",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                            else -> {
-                                Image(
-                                    painter = painter,
-                                    contentDescription = "Master blend preview",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit
-                                )
+                                is AsyncImagePainter.State.Error -> {
+                                    val error = (painter.state as AsyncImagePainter.State.Error).result.throwable
+                                    Text(
+                                        text = "Load error: ${error.message ?: "Unknown error"}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                                else -> {
+                                    Image(
+                                        painter = painter,
+                                        contentDescription = "Master blend preview",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                }
                             }
                         }
                     }

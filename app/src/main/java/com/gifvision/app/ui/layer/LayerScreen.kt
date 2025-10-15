@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gifvision.app.ui.components.FfmpegLogPanel
+import com.gifvision.app.ui.components.rememberLogPanelState
 import com.gifvision.app.ui.layout.LayoutMetrics
 import com.gifvision.app.ui.state.AdjustmentSettings
 import com.gifvision.app.ui.state.GifVisionBlendMode
@@ -57,6 +58,7 @@ fun LayerScreen(
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
+    val logPanelState = rememberLogPanelState(logs = layerState.ffmpegLogs)
 
     // The active stream state is used for the video preview player and adjustments panel
     val activeStreamState = when (layerState.activeStream) {
@@ -151,7 +153,8 @@ fun LayerScreen(
                     FfmpegLogPanel(
                         title = PanelCopy.layerLogTitle(layerState.title),
                         logs = layerState.ffmpegLogs,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        state = logPanelState
                     )
                 }
             }
@@ -211,7 +214,8 @@ fun LayerScreen(
             FfmpegLogPanel(
                 title = PanelCopy.layerLogTitle(layerState.title),
                 logs = layerState.ffmpegLogs,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                state = logPanelState
             )
         }
     }

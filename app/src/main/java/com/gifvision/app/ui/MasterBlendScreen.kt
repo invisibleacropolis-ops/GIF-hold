@@ -117,41 +117,39 @@ fun MasterBlendScreen(
                 }
 
                 var expanded by remember { mutableStateOf(false) }
-                var menuWidth by remember { mutableStateOf(0.dp) }
-                val density = LocalDensity.current
 
-                Box(modifier = Modifier.fillMaxWidth()) {
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { if (controlsEnabled) expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned { coordinates ->
-                                menuWidth = with(density) { coordinates.size.width.toDp() }
-                            }
-                            .clickable(enabled = controlsEnabled) { expanded = !expanded },
                         value = state.mode.displayName,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Blend Mode") },
                         enabled = controlsEnabled,
+                        label = { Text("Blend Mode") },
                         trailingIcon = {
                             Icon(
                                 imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
                                 contentDescription = if (expanded) "Collapse blend options" else "Expand blend options"
                             )
-                        }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(type = androidx.compose.material3.MenuAnchorType.PrimaryNotEditable)
                     )
+
                     DropdownMenu(
                         expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                        modifier = Modifier.width(menuWidth)
+                        onDismissRequest = { expanded = false }
                     ) {
-                        GifVisionBlendMode.entries.forEach { mode ->
+                        GifVisionBlendMode.entries.forEach { option ->
                             DropdownMenuItem(
-                                text = { Text(mode.displayName) },
-                                enabled = controlsEnabled,
+                                text = { Text(option.displayName) },
                                 onClick = {
                                     expanded = false
-                                    onModeChange(mode)
+                                    onModeChange(option)
                                 }
                             )
                         }

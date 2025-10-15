@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
@@ -50,16 +51,16 @@ import java.util.Locale
 fun FfmpegLogPanel(
     title: String,
     logs: List<LogEntry>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    state: FfmpegLogPanelState = rememberFfmpegLogPanelState()
 ) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val formattedPayload = remember(logs) { logs.joinToString(separator = "\n") { it.toDisplayString() } }
-    val listState = rememberLazyListState()
 
-    LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) {
-            listState.animateScrollToItem(logs.lastIndex)
+    LaunchedEffect(logs.size, state.autoScroll) {
+        if (state.autoScroll && logs.isNotEmpty()) {
+            state.listState.animateScrollToItem(logs.lastIndex)
         }
     }
 
@@ -123,7 +124,7 @@ fun FfmpegLogPanel(
                 )
             } else {
                 LazyColumn(
-                    state = listState,
+                    state = state.listState,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 120.dp, max = 280.dp),
@@ -138,6 +139,25 @@ fun FfmpegLogPanel(
         }
     }
 }
+
+/**
+ * Remembers the scrolling behaviour for the FFmpeg log panel so screens can opt-in to auto-scroll
+ * while still sharing the same implementation of copy/share affordances.
+ */
+@Composable
+fun rememberFfmpegLogPanelState(autoScroll: Boolean = true): FfmpegLogPanelState {
+    val listState = rememberLazyListState()
+    return remember(listState, autoScroll) { FfmpegLogPanelState(listState, autoScroll) }
+}
+
+/**
+ * Holder for the `LazyColumn` state used by [FfmpegLogPanel]. Exposed as a value class so callers
+ * can toggle auto-scroll when embedding the panel alongside other scrollable containers.
+ */
+class FfmpegLogPanelState internal constructor(
+    val listState: LazyListState,
+    internal val autoScroll: Boolean
+)
 
 /**
  * Single log row that renders timestamp, severity accent, and message payload. The styling mirrors

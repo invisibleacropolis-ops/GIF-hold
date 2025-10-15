@@ -14,14 +14,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -29,13 +28,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.gifvision.app.ui.components.BlendModeDropdown
-import com.gifvision.app.ui.components.BlendOpacitySlider
-import com.gifvision.app.ui.components.BlendPreviewThumbnail
-import com.gifvision.app.ui.components.GenerateBlendButton
+import com.gifvision.app.ui.components.BlendControlsCard
+import com.gifvision.app.ui.components.GifPreviewCard
 import com.gifvision.app.ui.components.FfmpegLogPanel
+import com.gifvision.app.ui.components.rememberFfmpegLogPanelState
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.MasterBlendConfig
 import com.gifvision.app.ui.state.GifLoopMetadata
@@ -71,93 +68,63 @@ fun MasterBlendScreen(
     val shareEnabled = state.masterGifPath != null && !state.isGenerating && !state.shareSetup.isPreparingShare
     val generateLabel = if (state.masterGifPath == null) "Generate Master Blend" else "Regenerate Master Blend"
     val masterOpacitySupportingText = "0.00 shows only Layer 1 Blend · 1.00 fully overlays Layer 2 Blend"
+    val masterStatusMessage = when {
+        !state.isEnabled -> "Generate blends for Layer 1 and Layer 2 to unlock the master controls."
+        state.isGenerating -> "Master blend rendering in progress…"
+        else -> null
+    }
+
+    val logPanelState = rememberFfmpegLogPanelState()
 
     val masterControls: @Composable () -> Unit = {
-        ElevatedCard {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(text = "Master Blend", style = MaterialTheme.typography.titleLarge)
-
-                if (!state.isEnabled) {
-                    Text(
-                        text = "Generate blends for Layer 1 and Layer 2 to unlock the master controls.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else if (state.isGenerating) {
-                    Text(
-                        text = "Master blend rendering in progress…",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                BlendModeDropdown(
-                    mode = state.mode,
-                    enabled = controlsEnabled,
-                    onModeSelected = onModeChange
-                )
-
-                BlendOpacitySlider(
-                    opacity = state.opacity,
-                    enabled = controlsEnabled,
-                    onOpacityChange = onOpacityChange,
-                    supportingText = masterOpacitySupportingText
-                )
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
+        BlendControlsCard(
+            title = "Master Blend",
+            mode = state.mode,
+            opacity = state.opacity,
+            onModeSelected = onModeChange,
+            onOpacityChange = onOpacityChange,
+            onGenerateBlend = onGenerateMasterBlend,
+            controlsEnabled = controlsEnabled,
+            generateEnabled = controlsEnabled,
+            isGenerating = state.isGenerating,
+            statusMessage = masterStatusMessage,
+            sliderSupportingText = masterOpacitySupportingText,
+            generateLabel = generateLabel,
+            actionContent = {
+                OutlinedButton(
+                    onClick = onSaveMasterBlend,
+                    enabled = saveEnabled,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    GenerateBlendButton(
-                        enabled = controlsEnabled,
-                        onGenerate = onGenerateMasterBlend,
-                        label = generateLabel,
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedButton(
-                        onClick = onSaveMasterBlend,
-                        enabled = saveEnabled,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Save")
-                    }
-                    Button(
-                        onClick = onShareMasterBlend,
-                        enabled = shareEnabled,
-                        colors = ButtonDefaults.filledTonalButtonColors(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (state.shareSetup.isPreparingShare) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Preparing…")
-                        } else {
-                            Text("Share")
-                        }
-                    }
+                    Text("Save")
                 }
-
-                if (state.isGenerating) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Button(
+                    onClick = onShareMasterBlend,
+                    enabled = shareEnabled,
+                    colors = ButtonDefaults.filledTonalButtonColors(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (state.shareSetup.isPreparingShare) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Preparing…")
+                    } else {
+                        Text("Share")
+                    }
                 }
             }
-        }
+        )
     }
 
     val previewCard: @Composable () -> Unit = {
-        Card(colors = CardDefaults.cardColors()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(text = "Master Preview", style = MaterialTheme.typography.titleLarge)
-                BlendPreviewThumbnail(
-                    path = state.masterGifPath,
-                    emptyStateText = "Generate Master Blend",
-                    contentDescription = "Master blend preview"
-                )
-            }
-        }
+        GifPreviewCard(
+            title = "Master Preview",
+            previewPath = state.masterGifPath,
+            emptyStateText = "Generate Master Blend"
+        )
     }
 
     val shareSetupCard: @Composable () -> Unit = {
@@ -173,7 +140,8 @@ fun MasterBlendScreen(
         FfmpegLogPanel(
             title = "Master FFmpeg Logs",
             logs = state.ffmpegLogs,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            state = logPanelState
         )
     }
 

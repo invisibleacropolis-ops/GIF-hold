@@ -38,6 +38,8 @@ import androidx.compose.material.icons.outlined.InvertColors
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import com.gifvision.app.navigation.GifVisionDestination
+import com.gifvision.app.ui.layer.LayerScreen
+import com.gifvision.app.ui.master.MasterBlendScreen
 import com.gifvision.app.ui.state.AdjustmentSettings
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.GifLoopMetadata

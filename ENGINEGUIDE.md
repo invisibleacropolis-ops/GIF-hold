@@ -198,7 +198,7 @@ The top bar exposes both an icon button and a switch for toggling high contrast,
 * Provides blend mode dropdown, opacity slider, and generate button mirroring layer-level controls.
 * Shows master preview via Coil with progress indicators while generating.
 * Exposes action buttons for "Save" (downloads) and "Share" (invokes share repository) with proper enablement gating.
-* Surfaces share setup card containing caption, hashtag input, loop metadata selection (`GifLoopMetadata` options), and platform previews (Instagram, TikTok, X) showing character counts, overflow warnings, and loop guidance.
+* Surfaces `ShareSetupCard` containing caption, hashtag input, loop metadata selection (`GifLoopMetadata` options), and platform previews (Instagram, TikTok, X) showing character counts, overflow warnings, and loop guidance.
 * Maintains a dedicated FFmpeg log panel for master-level operations.
 
 ### 4.5. Reusable UI Components
@@ -206,6 +206,9 @@ The `ui/components` package offers shared building blocks:
 
 * [`AdjustmentControls.kt`](app/src/main/java/com/gifvision/app/ui/components/AdjustmentControls.kt): `AdjustmentSlider`, `AdjustmentSwitch`, and `AdjustmentValidation` provide consistent styling, tooltip support, and validation messaging across adjustment tabs.
 * [`BlendControls.kt`](app/src/main/java/com/gifvision/app/ui/components/BlendControls.kt): Hosts `BlendModeDropdown`, `BlendOpacitySlider`, `GenerateBlendButton`, and `BlendPreviewThumbnail`. Widgets enforce enablement rules and surface progress/log states.
+* [`BlendControlsCard.kt`](app/src/main/java/com/gifvision/app/ui/components/BlendControlsCard.kt): Wraps the blend controls with shared status messaging, progress indicators, and optional action slots reused by layer and master workflows.
+* [`GifPreviewCard.kt`](app/src/main/java/com/gifvision/app/ui/components/GifPreviewCard.kt): Displays generated GIFs with consistent empty, loading, and error states plus action rows for regenerate/save affordances.
+* [`ShareSetupCard.kt`](app/src/main/java/com/gifvision/app/ui/components/ShareSetupCard.kt): Centralizes caption/hashtag inputs, loop metadata chips, and platform preview cards for reuse beyond the master screen.
 * [`FfmpegLogPanel.kt`](app/src/main/java/com/gifvision/app/ui/components/FfmpegLogPanel.kt): Renders scrollable log entries with severity badges, copy-to-clipboard actions, and optional title/empty state messaging.
 
 Reuse these components when adding new controls to minimize styling drift and ensure accessibility support remains consistent.

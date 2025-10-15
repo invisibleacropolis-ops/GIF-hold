@@ -3,16 +3,16 @@
 ## Phase Progress
 - **Phase 1 – File Extraction:** 100% (completed in prior work; no changes required this session)
 - **Phase 2 – Helper Abstractions:** 100% (no regressions observed; kept intact while extending UI layer)
-- **Phase 3 – Shared Component Adoption:** 60% (completed blend controls wrapper, shared preview card, and FFmpeg log state adoption; further reuse opportunities remain)
+- **Phase 3 – Shared Component Adoption:** 75% (share setup workflow now consumes extracted components alongside existing blend/log/preview reuse; a few niche cards still need evaluation)
 - **Phase 4 – Documentation & Tests:** 0% (deferred)
 
 ## Session Summary
-- Introduced `BlendControlsCard` to centralize enablement, messaging, and progress handling for both layer and master blend controls.
-- Added a reusable `GifPreviewCard` and refactored stream previews plus the master preview to consume it for consistent styling and actions.
-- Provided `rememberFfmpegLogPanelState` for scroll management and updated both primary screens to use it.
+- Extracted a reusable `ShareSetupCard`/`PlatformPreviewCard` pair so master and future share surfaces can reuse caption, hashtag, and preview UI without duplicating Material patterns.
+- Updated `MasterBlendScreen` to consume `ShareSetupCard`, keeping master actions focused on orchestration logic instead of layout plumbing.
+- Documented the new shared components in `ENGINEGUIDE.md` so onboarding engineers can find blend, preview, log, and share widgets quickly.
 
 ## Next Session TODOs
-- Extend Phase 3 by auditing remaining UI for additional reuse candidates (e.g., potential adoption of `GifPreviewCard` for layer blend output or other preview surfaces).
-- Evaluate whether further consolidation is needed between layer and master share/setup cards to drive additional reuse.
-- Begin planning Phase 4 deliverables (documentation updates and unit tests) once Phase 3 reaches ~100% completion.
-- Re-run instrumentation/unit tests once Android SDK configuration is available (current run blocked by missing `ANDROID_HOME`).
+- Finish Phase 3 by reviewing remaining layer-only cards (e.g., upload/adjustment shells) for feasible extraction without hurting clarity.
+- Explore whether blend preview thumbnails can standardize on `GifPreviewCard` or a slimmer variant to remove the last bespoke preview surface.
+- Kick off Phase 4 by sketching documentation/test coverage targets once shared components are stable.
+- Re-run unit/instrumented tests after configuring `ANDROID_HOME` (current `./gradlew test` attempt fails because the SDK is unavailable).

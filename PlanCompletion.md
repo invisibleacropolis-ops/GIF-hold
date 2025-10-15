@@ -214,3 +214,26 @@
   - Evaluate whether the layer blend preview should adopt `GifPreviewCard` for consistent preview framing or if the new blend wrapper suffices.
   - Expand shared preview usage to any remaining master cards (e.g., share setup) once dependencies are confirmed.
   - Maintain the outstanding action to provision the Android SDK so Gradle unit tests can execute locally.
+
+## Session 2025-10-21 - Start
+- Continuing Phase 3 with focus on the shared log panel state helper outlined in the prior TODO list.
+- Current completion estimates carried forward:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 35%
+  - Phase 4: 0%
+
+## Session 2025-10-21 - End
+- Added `LogPanelState` + `rememberLogPanelState` to encapsulate FFmpeg log auto-scroll, copy, and share flows, fulfilling the shared helper goal from PlanDoc.
+- Updated `FfmpegLogPanel` to consume the new state while keeping the UI contract intact, and hoisted the helper into both layer and master screens for consistent reuse.
+- Re-ran `./gradlew test --console=plain` (fails: missing Android SDK) to keep the tooling gap documented after the new shared state landed.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 50% (log panel state adopted; pending work includes remaining preview migrations and share setup alignment).
+  - Phase 4: 0%
+- TODOs for next session:
+  - Continue Phase 3 by evaluating `LayerBlendPreviewCard` adoption of `GifPreviewCard` and aligning any remaining preview surfaces.
+  - Expand shared preview usage or helper coverage to share/setup cards where practical.
+  - Prepare notes for Phase 4 documentation updates capturing the new log panel state architecture.
+  - Maintain the action to provision the Android SDK so Gradle unit tests can execute successfully.

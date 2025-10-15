@@ -36,8 +36,8 @@ import androidx.navigation.navArgument
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.InvertColors
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import com.gifvision.app.navigation.GifVisionDestination
+import com.gifvision.app.ui.layout.computeUiLayoutConfig
 import com.gifvision.app.ui.layer.LayerScreen
 import com.gifvision.app.ui.master.MasterBlendScreen
 import com.gifvision.app.ui.state.AdjustmentSettings
@@ -96,7 +96,7 @@ fun GifVisionApp(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentLayerId = navBackStackEntry?.arguments?.getInt(GifVisionDestination.Layer.ARG_LAYER_ID)
     val currentRoute = navBackStackEntry?.destination?.route
-    val isLargeScreen = windowSizeClass.widthSizeClass >= WindowWidthSizeClass.Medium
+    val layoutConfig = computeUiLayoutConfig(windowSizeClass)
 
     val firstLayer = uiState.layers.getOrNull(0)
     val secondLayer = uiState.layers.getOrNull(1)
@@ -255,7 +255,7 @@ fun GifVisionApp(
                     }
                     LayerScreen(
                         layerState = layer,
-                        isWideLayout = isLargeScreen,
+                        isWideLayout = layoutConfig.isWideLayout,
                         onStreamSelected = { stream -> onSelectStream(layer.id, stream) },
                         onAdjustmentsChange = { stream, transformer ->
                             onAdjustmentsChange(layer.id, stream, transformer)
@@ -283,7 +283,7 @@ fun GifVisionApp(
             composable(GifVisionDestination.MasterBlend.route) {
                 MasterBlendScreen(
                     state = uiState.masterBlend,
-                    isWideLayout = isLargeScreen,
+                    isWideLayout = layoutConfig.isWideLayout,
                     onModeChange = onMasterBlendModeChange,
                     onOpacityChange = onMasterBlendOpacityChange,
                     onGenerateMasterBlend = onRequestMasterBlend,

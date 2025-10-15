@@ -27,6 +27,9 @@ import android.provider.OpenableColumns
 import com.gifvision.app.ui.resources.LogCopy
 import com.gifvision.app.ui.state.LogEntry
 import com.gifvision.app.ui.state.LogSeverity
+import com.gifvision.app.ui.state.validation.LayerBlendValidation
+import com.gifvision.app.ui.state.validation.MasterBlendValidation
+import com.gifvision.app.ui.state.validation.StreamValidation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1203,24 +1206,6 @@ class GifVisionViewModel(
         val streamValidation: StreamValidation,
         val layerBlendValidation: LayerBlendValidation
     )
-
-    /** Stream validation result used by UI surfaces. */
-    sealed class StreamValidation {
-        object Valid : StreamValidation()
-        data class Error(val reasons: List<String>) : StreamValidation()
-    }
-
-    /** Validation state for the layer-level blend operation. */
-    sealed class LayerBlendValidation {
-        object Ready : LayerBlendValidation()
-        data class Blocked(val reasons: List<String>) : LayerBlendValidation()
-    }
-
-    /** Validation state for the master blend operation. */
-    sealed class MasterBlendValidation {
-        object Ready : MasterBlendValidation()
-        data class Blocked(val reasons: List<String>) : MasterBlendValidation()
-    }
 
     /**
      * Metadata payload emitted by [loadClipMetadata]. The view-model converts this object into the

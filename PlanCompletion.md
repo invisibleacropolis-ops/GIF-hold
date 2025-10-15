@@ -71,3 +71,27 @@
   - Start drafting the structure for validation utility extraction targeted for Phase 2.
   - Plan ENGINEGUIDE updates covering the new `ui/resources` package for later documentation work in Phase 4.
   - Maintain the outstanding action to provision the Android SDK so `./gradlew test` succeeds locally.
+
+## Session 2025-10-15 - Start
+- Advancing Phase 1 extraction work with emphasis on consolidating UI panel copy and defining the render job registry helper per PlanDoc recommendations.
+- Carried forward completion estimates:
+  - Phase 1: 80%
+  - Phase 2: 0%
+  - Phase 3: 0%
+  - Phase 4: 0%
+
+## Session 2025-10-15 - End
+- Centralized log panel titles and preview empty state strings in `ui/resources/PanelCopy`, updating layer and master screens plus shared preview components to consume the shared copy.
+- Added `media/RenderJobRegistry` and re-pointed FFmpeg request payloads to use the consolidated job ID helpers without changing behaviour.
+- Began Phase 2 preparations by extracting stream/layer/master validation models into `ui/state/validation/ValidationModels.kt` for future utility migration.
+- Re-ran `./gradlew test` (fails: Android SDK location missing) to capture the persistent tooling blocker with stacktrace context.
+- Updated completion estimates:
+  - Phase 1: 90% (panel copy consolidation and job registry scaffolding complete; remaining extraction targets limited to residual constants/documentation alignment).
+  - Phase 2: 10% (validation models extracted; next step is moving validation functions into dedicated utilities).
+  - Phase 3: 0%
+  - Phase 4: 0%
+- TODOs for next session:
+  - Audit remaining UI strings/constants for consolidation to close Phase 1 and prepare ENGINEGUIDE updates.
+  - Move validation helper functions (stream, layer, master) into the new `ui/state/validation` package and adjust the view-model to delegate (Phase 2).
+  - Outline coordinator scaffolding (e.g., ClipImporter or MessageCenter) to continue Phase 2 delegation work.
+  - Continue tracking the missing Android SDK requirement so automated tests can run locally once provisioned.

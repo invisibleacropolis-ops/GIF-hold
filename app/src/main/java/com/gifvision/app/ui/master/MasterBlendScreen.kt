@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.gifvision.app.ui.components.FfmpegLogPanel
+import com.gifvision.app.ui.resources.PanelCopy
 import com.gifvision.app.ui.state.GifLoopMetadata
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.MasterBlendConfig
@@ -68,7 +69,7 @@ fun MasterBlendScreen(
 
     val logPanel: @Composable () -> Unit = {
         FfmpegLogPanel(
-            title = "Master FFmpeg Logs",
+            title = PanelCopy.MASTER_LOG_TITLE,
             logs = state.ffmpegLogs,
             modifier = Modifier.fillMaxWidth()
         )

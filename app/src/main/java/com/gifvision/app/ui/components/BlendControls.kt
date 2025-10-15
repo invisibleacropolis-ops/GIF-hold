@@ -35,6 +35,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
+import com.gifvision.app.ui.resources.PanelCopy
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import java.io.File
 import kotlin.math.roundToInt
@@ -150,7 +151,7 @@ fun GenerateBlendButton(
 fun BlendPreviewThumbnail(
     path: String?,
     modifier: Modifier = Modifier,
-    emptyStateText: String = "No blended GIF yet",
+    emptyStateText: String = PanelCopy.BLEND_PREVIEW_EMPTY_STATE,
     contentDescription: String = "Blend preview"
 ) {
     val context = LocalContext.current

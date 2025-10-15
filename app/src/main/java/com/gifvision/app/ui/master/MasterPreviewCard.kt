@@ -11,16 +11,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gifvision.app.ui.components.BlendPreviewThumbnail
+import com.gifvision.app.ui.resources.PanelCopy
 import com.gifvision.app.ui.state.MasterBlendConfig
 
 @Composable
 internal fun MasterPreviewCard(state: MasterBlendConfig) {
     Card(colors = CardDefaults.cardColors()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(text = "Master Preview", style = MaterialTheme.typography.titleLarge)
+            Text(text = PanelCopy.MASTER_PREVIEW_TITLE, style = MaterialTheme.typography.titleLarge)
             BlendPreviewThumbnail(
                 path = state.masterGifPath,
-                emptyStateText = "Generate Master Blend",
+                emptyStateText = PanelCopy.MASTER_PREVIEW_EMPTY_STATE,
                 contentDescription = "Master blend preview"
             )
         }

@@ -1138,34 +1138,46 @@ private fun BlendPreviewCard(
     val streamAReady = !layerState.streamA.generatedGifPath.isNullOrBlank()
     val streamBReady = !layerState.streamB.generatedGifPath.isNullOrBlank()
     val isGenerating = layerState.blendState.isGenerating
-    val controlsEnabled = streamAReady && streamBReady && !isGenerating
+    val blendControlsEnabled = streamAReady && streamBReady && !isGenerating
+    val generateEnabled = (streamAReady || streamBReady) && !isGenerating
 
     ElevatedCard {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(text = "Blend Preview", style = MaterialTheme.typography.titleLarge)
 
-            if (!streamAReady || !streamBReady) {
-                Text(
-                    text = "Render Stream A and Stream B to unlock blending.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            when {
+                streamAReady && streamBReady -> Unit
+                streamAReady || streamBReady -> {
+                    val readyStream = if (streamAReady) "Stream A" else "Stream B"
+                    Text(
+                        text = "$readyStream is ready. Generating a blend will reuse it without combining streams.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                else -> {
+                    Text(
+                        text = "Render Stream A or Stream B to unlock blending.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             BlendModeDropdown(
                 mode = layerState.blendState.mode,
-                enabled = controlsEnabled,
+                enabled = blendControlsEnabled,
                 onModeSelected = onBlendModeChange
             )
 
             BlendOpacitySlider(
                 opacity = layerState.blendState.opacity,
-                enabled = controlsEnabled,
+                enabled = blendControlsEnabled,
                 onOpacityChange = onBlendOpacityChange
             )
 
             GenerateBlendButton(
-                enabled = controlsEnabled,
+                enabled = generateEnabled,
                 onGenerate = onGenerateBlend
             )
 

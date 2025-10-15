@@ -526,7 +526,7 @@ class GifVisionViewModel(
         }
     }
 
-    /** Dispatches a layer blend job when both streams are ready. */
+    /** Dispatches a layer blend job once at least one stream render is available. */
     fun requestLayerBlend(layerId: Int) {
         val layer = _uiState.value.layers.firstOrNull { it.id == layerId } ?: return
         val validation = validateLayerBlend(layer)
@@ -537,88 +537,130 @@ class GifVisionViewModel(
 
         val streamAPath = layer.streamA.generatedGifPath
         val streamBPath = layer.streamB.generatedGifPath
-        
-        if (streamAPath.isNullOrBlank() || streamBPath.isNullOrBlank()) {
+
+        val hasStreamA = !streamAPath.isNullOrBlank()
+        val hasStreamB = !streamBPath.isNullOrBlank()
+
+        if (!hasStreamA && !hasStreamB) {
             appendLog(layerId, "Cannot blend - missing GIF files", LogSeverity.Error)
             return
         }
 
-        // Validate that both files actually exist
-        val fileA = java.io.File(streamAPath)
-        val fileB = java.io.File(streamBPath)
-        
-        if (!fileA.exists()) {
-            appendLog(layerId, "Stream A GIF file not found: $streamAPath", LogSeverity.Error)
-            postMessage("Stream A GIF file missing. Try regenerating it.", isError = true)
+        if (hasStreamA && hasStreamB) {
+            // Validate that both files actually exist
+            val fileA = java.io.File(streamAPath)
+            val fileB = java.io.File(streamBPath)
+
+            if (!fileA.exists()) {
+                appendLog(layerId, "Stream A GIF file not found: $streamAPath", LogSeverity.Error)
+                postMessage("Stream A GIF file missing. Try regenerating it.", isError = true)
+                return
+            }
+
+            if (!fileB.exists()) {
+                appendLog(layerId, "Stream B GIF file not found: $streamBPath", LogSeverity.Error)
+                postMessage("Stream B GIF file missing. Try regenerating it.", isError = true)
+                return
+            }
+
+            appendLog(layerId, "Blending ${fileA.name} + ${fileB.name} with ${layer.blendState.mode.displayName} mode at ${layer.blendState.opacity} opacity")
+
+            viewModelScope.launch {
+                setLayerBlendGenerating(layerId, true)
+                try {
+                    processingCoordinator.blendLayer(
+                        LayerBlendRequest(
+                            layerId = layerId,
+                            streamAPath = streamAPath,
+                            streamBPath = streamBPath,
+                            blendMode = layer.blendState.mode,
+                            opacity = layer.blendState.opacity,
+                            suggestedOutputPath = layer.blendState.blendedGifPath
+                        )
+                    ).collect { event ->
+                        when (event) {
+                            is GifProcessingEvent.Started -> event.message?.let { appendLog(layerId, it) }
+                            is GifProcessingEvent.Progress -> {
+                                val percent = (event.progress * 100).roundToInt()
+                                appendLog(layerId, event.message ?: "${event.jobId} progress $percent%")
+                            }
+                            is GifProcessingEvent.Completed -> {
+                                val asset = mediaRepository.storeLayerBlend(layerId, event.outputPath)
+                                updateLayer(layerId) { current ->
+                                    current.copy(
+                                        blendState = current.blendState.copy(
+                                            blendedGifPath = asset.path,
+                                            isGenerating = false
+                                        )
+                                    )
+                                }
+                                event.logs.forEach { appendLog(layerId, it) }
+                                appendLog(layerId, "${event.jobId} complete -> ${asset.path}")
+                                updateMasterBlendAvailability()
+                            }
+                            is GifProcessingEvent.Failed -> {
+                                updateLayer(layerId) { current ->
+                                    current.copy(blendState = current.blendState.copy(isGenerating = false))
+                                }
+                                appendLog(
+                                    layerId,
+                                    "${event.jobId} failed: ${event.throwable.message}",
+                                    LogSeverity.Error
+                                )
+                                postMessage("Blend failed: ${event.throwable.message}", isError = true)
+                            }
+                            is GifProcessingEvent.Cancelled -> {
+                                updateLayer(layerId) { current ->
+                                    current.copy(blendState = current.blendState.copy(isGenerating = false))
+                                }
+                                appendLog(
+                                    layerId,
+                                    "${event.jobId} cancelled by user",
+                                    LogSeverity.Warning
+                                )
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Catch any uncaught exceptions to prevent app crashes
+                    updateLayer(layerId) { current ->
+                        current.copy(blendState = current.blendState.copy(isGenerating = false))
+                    }
+                    val message = e.message ?: "Unknown error during blend"
+                    appendLog(layerId, "Blend error: $message", LogSeverity.Error)
+                    postMessage("Blend failed: $message", isError = true)
+                }
+            }
             return
         }
-        
-        if (!fileB.exists()) {
-            appendLog(layerId, "Stream B GIF file not found: $streamBPath", LogSeverity.Error)
-            postMessage("Stream B GIF file missing. Try regenerating it.", isError = true)
+
+        val sourcePath = streamAPath ?: streamBPath
+        val readyStreamLabel = if (hasStreamA) "Stream A" else "Stream B"
+        val sourceFile = java.io.File(sourcePath!!)
+
+        if (!sourceFile.exists()) {
+            appendLog(layerId, "$readyStreamLabel GIF file not found: $sourcePath", LogSeverity.Error)
+            postMessage("$readyStreamLabel GIF file missing. Try regenerating it.", isError = true)
             return
         }
-        
-        appendLog(layerId, "Blending ${fileA.name} + ${fileB.name} with ${layer.blendState.mode.displayName} mode at ${layer.blendState.opacity} opacity")
+
+        appendLog(layerId, "$readyStreamLabel ready – copying ${sourceFile.name} into the blend preview")
 
         viewModelScope.launch {
             setLayerBlendGenerating(layerId, true)
             try {
-                processingCoordinator.blendLayer(
-                    LayerBlendRequest(
-                        layerId = layerId,
-                        streamAPath = streamAPath,
-                        streamBPath = streamBPath,
-                        blendMode = layer.blendState.mode,
-                        opacity = layer.blendState.opacity,
-                        suggestedOutputPath = layer.blendState.blendedGifPath
+                val asset = mediaRepository.storeLayerBlend(layerId, sourcePath)
+                updateLayer(layerId) { current ->
+                    current.copy(
+                        blendState = current.blendState.copy(
+                            blendedGifPath = asset.path,
+                            isGenerating = false
+                        )
                     )
-                ).collect { event ->
-                    when (event) {
-                        is GifProcessingEvent.Started -> event.message?.let { appendLog(layerId, it) }
-                        is GifProcessingEvent.Progress -> {
-                            val percent = (event.progress * 100).roundToInt()
-                            appendLog(layerId, event.message ?: "${event.jobId} progress $percent%")
-                        }
-                        is GifProcessingEvent.Completed -> {
-                            val asset = mediaRepository.storeLayerBlend(layerId, event.outputPath)
-                            updateLayer(layerId) { current ->
-                                current.copy(
-                                    blendState = current.blendState.copy(
-                                        blendedGifPath = asset.path,
-                                        isGenerating = false
-                                    )
-                                )
-                            }
-                            event.logs.forEach { appendLog(layerId, it) }
-                            appendLog(layerId, "${event.jobId} complete -> ${asset.path}")
-                            updateMasterBlendAvailability()
-                        }
-                        is GifProcessingEvent.Failed -> {
-                            updateLayer(layerId) { current ->
-                                current.copy(blendState = current.blendState.copy(isGenerating = false))
-                            }
-                            appendLog(
-                                layerId,
-                                "${event.jobId} failed: ${event.throwable.message}",
-                                LogSeverity.Error
-                            )
-                            postMessage("Blend failed: ${event.throwable.message}", isError = true)
-                        }
-                        is GifProcessingEvent.Cancelled -> {
-                            updateLayer(layerId) { current ->
-                                current.copy(blendState = current.blendState.copy(isGenerating = false))
-                            }
-                            appendLog(
-                                layerId,
-                                "${event.jobId} cancelled by user",
-                                LogSeverity.Warning
-                            )
-                        }
-                    }
                 }
+                appendLog(layerId, "Blend preview now mirrors ${sourceFile.name}")
+                updateMasterBlendAvailability()
             } catch (e: Exception) {
-                // Catch any uncaught exceptions to prevent app crashes
                 updateLayer(layerId) { current ->
                     current.copy(blendState = current.blendState.copy(isGenerating = false))
                 }
@@ -1117,11 +1159,10 @@ class GifVisionViewModel(
 
     private fun validateLayerBlend(layer: Layer): LayerBlendValidation {
         val errors = mutableListOf<String>()
-        if (layer.streamA.generatedGifPath.isNullOrBlank()) {
-            errors += "Stream A must be rendered before blending"
-        }
-        if (layer.streamB.generatedGifPath.isNullOrBlank()) {
-            errors += "Stream B must be rendered before blending"
+        val streamAReady = !layer.streamA.generatedGifPath.isNullOrBlank()
+        val streamBReady = !layer.streamB.generatedGifPath.isNullOrBlank()
+        if (!streamAReady && !streamBReady) {
+            errors += "Render Stream A or Stream B before blending"
         }
         if (layer.blendState.opacity !in 0f..1f) {
             errors += "Layer opacity must remain between 0 and 1"

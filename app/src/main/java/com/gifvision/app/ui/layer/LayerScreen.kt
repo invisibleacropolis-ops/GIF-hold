@@ -24,6 +24,8 @@ import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.Layer
 import com.gifvision.app.ui.state.LogSeverity
 import com.gifvision.app.ui.state.StreamSelection
+import com.gifvision.app.ui.resources.LogCopy
+import com.gifvision.app.ui.resources.VIDEO_MIME_TYPES
 
 /**
  * Screen dedicated to managing a single layer (Stream A + Stream B). It wires the import picker,
@@ -68,7 +70,7 @@ fun LayerScreen(
                 )
             } catch (security: SecurityException) {
                 onAppendLog(
-                    "Persistable permission denied: ${security.message ?: \"unknown\"}",
+                    LogCopy.persistablePermissionDenied(security.message),
                     LogSeverity.Error
                 )
             }
@@ -95,7 +97,7 @@ fun LayerScreen(
                     UploadCard(
                         layerState = layerState,
                         onBrowseForClip = {
-                            openDocumentLauncher.launch(arrayOf("video/*"))
+                            openDocumentLauncher.launch(VIDEO_MIME_TYPES)
                         },
                         onAppendLog = onAppendLog
                     )
@@ -150,7 +152,7 @@ fun LayerScreen(
             UploadCard(
                 layerState = layerState,
                 onBrowseForClip = {
-                    openDocumentLauncher.launch(arrayOf("video/*"))
+                    openDocumentLauncher.launch(VIDEO_MIME_TYPES)
                 },
                 onAppendLog = onAppendLog
             )

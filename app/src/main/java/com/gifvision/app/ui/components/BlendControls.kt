@@ -2,20 +2,26 @@ package com.gifvision.app.ui.components
 
 import android.os.Build
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.matchParentSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -208,6 +214,76 @@ fun BlendPreviewThumbnail(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Availability contract consumed by [BlendControlsCard] so callers can compute enablement once and
+ * hand the shared wrapper a stable view of the current rendering state.
+ */
+data class BlendControlsAvailability(
+    val controlsEnabled: Boolean,
+    val generateEnabled: Boolean,
+    val isGenerating: Boolean
+)
+
+/**
+ * Shared wrapper that combines the blend mode dropdown, opacity slider, and generate CTA into a
+ * single elevated card. Layer and master screens can supply custom messaging, action rows, and
+ * footer content while delegating progress chrome + enablement wiring to this component.
+ */
+@Composable
+fun BlendControlsCard(
+    title: String,
+    availability: BlendControlsAvailability,
+    mode: GifVisionBlendMode,
+    opacity: Float,
+    onModeChange: (GifVisionBlendMode) -> Unit,
+    onOpacityChange: (Float) -> Unit,
+    onGenerateBlend: () -> Unit,
+    modifier: Modifier = Modifier,
+    generateLabel: String = "Generate Blended GIF",
+    opacitySupportingText: String = "0.00 hides Stream B · 1.00 fully overlays it",
+    infoContent: (@Composable ColumnScope.(BlendControlsAvailability) -> Unit)? = null,
+    actionContent: @Composable ColumnScope.(BlendControlsAvailability) -> Unit = {
+        GenerateBlendButton(
+            enabled = it.generateEnabled,
+            onGenerate = onGenerateBlend,
+            label = generateLabel
+        )
+    },
+    footerContent: (@Composable ColumnScope.(BlendControlsAvailability) -> Unit)? = null
+) {
+    ElevatedCard(modifier = modifier) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(text = title, style = MaterialTheme.typography.titleLarge)
+
+            infoContent?.invoke(this, availability)
+
+            BlendModeDropdown(
+                mode = mode,
+                enabled = availability.controlsEnabled,
+                onModeSelected = onModeChange
+            )
+
+            BlendOpacitySlider(
+                opacity = opacity,
+                enabled = availability.controlsEnabled,
+                onOpacityChange = onOpacityChange,
+                supportingText = opacitySupportingText
+            )
+
+            actionContent(this, availability)
+
+            if (availability.isGenerating) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+
+            footerContent?.invoke(this, availability)
         }
     }
 }

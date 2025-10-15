@@ -1,19 +1,11 @@
 package com.gifvision.app.ui.layer
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import com.gifvision.app.ui.components.BlendModeDropdown
-import com.gifvision.app.ui.components.BlendOpacitySlider
+import com.gifvision.app.ui.components.BlendControlsAvailability
+import com.gifvision.app.ui.components.BlendControlsCard
 import com.gifvision.app.ui.components.BlendPreviewThumbnail
-import com.gifvision.app.ui.components.GenerateBlendButton
 import com.gifvision.app.ui.resources.LayerCopy
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.Layer
@@ -33,13 +25,21 @@ internal fun BlendPreviewCard(
     val streamAReady = !layerState.streamA.generatedGifPath.isNullOrBlank()
     val streamBReady = !layerState.streamB.generatedGifPath.isNullOrBlank()
     val isGenerating = layerState.blendState.isGenerating
-    val blendControlsEnabled = streamAReady && streamBReady && !isGenerating
-    val generateEnabled = (streamAReady || streamBReady) && !isGenerating
+    val availability = BlendControlsAvailability(
+        controlsEnabled = streamAReady && streamBReady && !isGenerating,
+        generateEnabled = (streamAReady || streamBReady) && !isGenerating,
+        isGenerating = isGenerating
+    )
 
-    ElevatedCard {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(text = LayerCopy.BLEND_PREVIEW_TITLE, style = MaterialTheme.typography.titleLarge)
-
+    BlendControlsCard(
+        title = LayerCopy.BLEND_PREVIEW_TITLE,
+        availability = availability,
+        mode = layerState.blendState.mode,
+        opacity = layerState.blendState.opacity,
+        onModeChange = onBlendModeChange,
+        onOpacityChange = onBlendOpacityChange,
+        onGenerateBlend = onGenerateBlend,
+        infoContent = {
             when {
                 streamAReady && streamBReady -> Unit
                 streamAReady || streamBReady -> {
@@ -50,6 +50,7 @@ internal fun BlendPreviewCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+
                 else -> {
                     Text(
                         text = LayerCopy.BLEND_REQUIREMENT_HINT,
@@ -58,29 +59,9 @@ internal fun BlendPreviewCard(
                     )
                 }
             }
-
-            BlendModeDropdown(
-                mode = layerState.blendState.mode,
-                enabled = blendControlsEnabled,
-                onModeSelected = onBlendModeChange
-            )
-
-            BlendOpacitySlider(
-                opacity = layerState.blendState.opacity,
-                enabled = blendControlsEnabled,
-                onOpacityChange = onBlendOpacityChange
-            )
-
-            GenerateBlendButton(
-                enabled = generateEnabled,
-                onGenerate = onGenerateBlend
-            )
-
-            if (isGenerating) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-
+        },
+        footerContent = {
             BlendPreviewThumbnail(path = layerState.blendState.blendedGifPath)
         }
-    }
+    )
 }

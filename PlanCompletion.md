@@ -189,3 +189,28 @@
   - Audit remaining coordinator surfaces for documentation needs ahead of Phase 4 and plan corresponding ENGINEGUIDE updates.
   - Evaluate opportunities for additional JVM tests covering share/export edge cases introduced by the new preview component once adoption expands.
   - Keep tracking Android SDK provisioning so Gradle unit tests can execute successfully when the tooling gap is resolved.
+
+## Session 2025-10-20 - Start
+- Continuing Phase 3 reusable component adoption with focus on consolidating blend control surfaces across layer and master flows.
+- Current completion estimates carried forward:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 10%
+  - Phase 4: 0%
+
+## Session 2025-10-20 - End
+- Introduced `BlendControlsCard` and `BlendControlsAvailability` so both layer and master screens share identical blend enablement, progress, and chrome wiring while keeping screen-specific messaging slot-based.
+- Refactored the layer blend card to delegate to the shared wrapper and reuse the consolidated availability contract alongside the existing `BlendPreviewThumbnail`.
+- Migrated master controls onto the same shared card while preserving the save/share action row, ensuring generating hints and enablement logic flow through the consolidated component.
+- Updated the master preview card to consume `GifPreviewCard`, aligning master-level previews with the Phase 3 shared scaffold established previously.
+- Re-ran `./gradlew test --console=plain` (fails: missing Android SDK) to log the persistent tooling gap after the new shared component adoption.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 35% (blend controls + master preview now standardized; remaining work includes log panel state + additional preview migrations).
+  - Phase 4: 0%
+- TODOs for next session:
+  - Continue Phase 3 by extracting a shared log panel state helper and migrating both layer/master screens to it.
+  - Evaluate whether the layer blend preview should adopt `GifPreviewCard` for consistent preview framing or if the new blend wrapper suffices.
+  - Expand shared preview usage to any remaining master cards (e.g., share setup) once dependencies are confirmed.
+  - Maintain the outstanding action to provision the Android SDK so Gradle unit tests can execute locally.

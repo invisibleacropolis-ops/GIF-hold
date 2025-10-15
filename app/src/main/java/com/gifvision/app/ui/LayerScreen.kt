@@ -79,11 +79,11 @@ import coil.request.ImageRequest
 import com.gifvision.app.ui.components.AdjustmentSlider
 import com.gifvision.app.ui.components.AdjustmentSwitch
 import com.gifvision.app.ui.components.AdjustmentValidation
-import com.gifvision.app.ui.components.BlendModeDropdown
-import com.gifvision.app.ui.components.BlendOpacitySlider
 import com.gifvision.app.ui.components.BlendPreviewThumbnail
+import com.gifvision.app.ui.components.BlendControlsCard
+import com.gifvision.app.ui.components.GifPreviewCard
 import com.gifvision.app.ui.components.FfmpegLogPanel
-import com.gifvision.app.ui.components.GenerateBlendButton
+import com.gifvision.app.ui.components.rememberFfmpegLogPanelState
 import com.gifvision.app.ui.state.AdjustmentSettings
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.Layer
@@ -149,6 +149,8 @@ fun LayerScreen(
         }
     }
 
+    val logPanelState = rememberFfmpegLogPanelState()
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -209,7 +211,8 @@ fun LayerScreen(
                     FfmpegLogPanel(
                         title = "${layerState.title} FFmpeg Logs",
                         logs = layerState.ffmpegLogs,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        state = logPanelState
                     )
                 }
             }
@@ -253,7 +256,8 @@ fun LayerScreen(
             FfmpegLogPanel(
                 title = "${layerState.title} FFmpeg Logs",
                 logs = layerState.ffmpegLogs,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                state = logPanelState
             )
         }
     }
@@ -1031,95 +1035,18 @@ private fun StreamPreviewCard(
     onRequestStreamRender: () -> Unit,
     onSaveStream: () -> Unit
 ) {
-    val context = LocalContext.current
-    ElevatedCard {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(text = "Stream ${streamState.stream.name} Preview", style = MaterialTheme.typography.titleLarge)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f), // Use 16:9 aspect ratio to match typical video
-                contentAlignment = Alignment.Center
-            ) {
-                when {
-                    streamState.generatedGifPath != null -> {
-                        val imageRequest = remember(streamState.generatedGifPath) {
-                            val gifFile = File(streamState.generatedGifPath)
-                            coil.request.ImageRequest.Builder(context)
-                                .data(gifFile)
-                                .crossfade(true)
-                                .apply {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                        decoderFactory(coil.decode.ImageDecoderDecoder.Factory())
-                                    } else {
-                                        decoderFactory(coil.decode.GifDecoder.Factory())
-                                    }
-                                }
-                                .build()
-                        }
-                        val painter = rememberAsyncImagePainter(model = imageRequest)
-                        Image(
-                            painter = painter,
-                            contentDescription = "Generated GIF preview for Stream ${streamState.stream.name}",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-
-                    streamState.previewThumbnail != null -> {
-                        Image(
-                            bitmap = streamState.previewThumbnail,
-                            contentDescription = "Source thumbnail preview for Stream ${streamState.stream.name}",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-
-                    else -> {
-                        Text(
-                            text = "Generate a GIF to preview the output.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Button(
-                    onClick = onRequestStreamRender,
-                    enabled = !streamState.isGenerating,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (streamState.generatedGifPath != null) "Regenerate" else "Generate")
-                }
-                
-                OutlinedButton(
-                    onClick = onSaveStream,
-                    enabled = streamState.generatedGifPath != null && !streamState.isGenerating,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Save")
-                }
-            }
-            
-            if (streamState.isGenerating) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Text(
-                    text = "Rendering Stream ${streamState.stream.name}...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-    }
+    GifPreviewCard(
+        title = "Stream ${streamState.stream.name} Preview",
+        previewPath = streamState.generatedGifPath,
+        thumbnail = streamState.previewThumbnail,
+        isGenerating = streamState.isGenerating,
+        onGenerate = onRequestStreamRender,
+        onSave = onSaveStream,
+        generateEnabled = !streamState.isGenerating,
+        saveEnabled = streamState.generatedGifPath != null && !streamState.isGenerating,
+        generateLabel = if (streamState.generatedGifPath != null) "Regenerate" else "Generate",
+        progressMessage = "Rendering Stream ${streamState.stream.name}..."
+    )
 }
 
 /**
@@ -1140,54 +1067,30 @@ private fun BlendPreviewCard(
     val isGenerating = layerState.blendState.isGenerating
     val blendControlsEnabled = streamAReady && streamBReady && !isGenerating
     val generateEnabled = (streamAReady || streamBReady) && !isGenerating
+    val statusMessage = when {
+        streamAReady && streamBReady -> null
+        streamAReady || streamBReady -> {
+            val readyStream = if (streamAReady) "Stream A" else "Stream B"
+            "$readyStream is ready. Generating a blend will reuse it without combining streams."
+        }
+        else -> "Render Stream A or Stream B to unlock blending."
+    }
 
-    ElevatedCard {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(text = "Blend Preview", style = MaterialTheme.typography.titleLarge)
-
-            when {
-                streamAReady && streamBReady -> Unit
-                streamAReady || streamBReady -> {
-                    val readyStream = if (streamAReady) "Stream A" else "Stream B"
-                    Text(
-                        text = "$readyStream is ready. Generating a blend will reuse it without combining streams.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                else -> {
-                    Text(
-                        text = "Render Stream A or Stream B to unlock blending.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            BlendModeDropdown(
-                mode = layerState.blendState.mode,
-                enabled = blendControlsEnabled,
-                onModeSelected = onBlendModeChange
-            )
-
-            BlendOpacitySlider(
-                opacity = layerState.blendState.opacity,
-                enabled = blendControlsEnabled,
-                onOpacityChange = onBlendOpacityChange
-            )
-
-            GenerateBlendButton(
-                enabled = generateEnabled,
-                onGenerate = onGenerateBlend
-            )
-
-            if (isGenerating) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-
+    BlendControlsCard(
+        title = "Blend Preview",
+        mode = layerState.blendState.mode,
+        opacity = layerState.blendState.opacity,
+        onModeSelected = onBlendModeChange,
+        onOpacityChange = onBlendOpacityChange,
+        onGenerateBlend = onGenerateBlend,
+        controlsEnabled = blendControlsEnabled,
+        generateEnabled = generateEnabled,
+        isGenerating = isGenerating,
+        statusMessage = statusMessage,
+        supportingContent = {
             BlendPreviewThumbnail(path = layerState.blendState.blendedGifPath)
         }
-    }
+    )
 }
 
 private fun formatDuration(durationMs: Long): String {

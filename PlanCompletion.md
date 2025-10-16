@@ -237,3 +237,28 @@
   - Expand shared preview usage or helper coverage to share/setup cards where practical.
   - Prepare notes for Phase 4 documentation updates capturing the new log panel state architecture.
   - Maintain the action to provision the Android SDK so Gradle unit tests can execute successfully.
+
+## Session 2025-10-22 - Start
+- Continuing Phase 3 preview consolidation with emphasis on migrating the layer blend card onto the shared `GifPreviewCard` scaffold and tightening blend control reuse.
+- Carried forward completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 50%
+  - Phase 4: 0%
+
+## Session 2025-10-22 - End
+- Introduced a `PreviewPlacement` enum for `GifPreviewCard` so preview content can render either above or below controls while keeping a single shared scaffold.
+- Extracted `BlendControlsContent` from `BlendControlsCard` and reused it inside the layer blend card, eliminating duplicated dropdown/slider wiring while keeping master controls behaviour intact.
+- Refactored `LayerBlendPreviewCard` to consume `GifPreviewCard` with the new placement option, aligning the blend preview chrome with the shared stream/master preview treatment without altering enablement logic.
+- Added the missing `dp` import for `LayerStreamPreviewCard` while touching the file so Compose spacing helpers resolve correctly.
+- Re-ran `./gradlew test --console=plain` (fails: missing Android SDK), documenting the persistent local tooling blocker after the preview refactor.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 65% (layer blend preview now reuses the shared scaffold; remaining work targets share setup previews and any residual preview chrome).
+  - Phase 4: 0%
+- TODOs for next session:
+  - Continue Phase 3 by assessing whether master share setup/platform preview cards can leverage `GifPreviewCard` or adjacent shared helpers without regressing layout requirements.
+  - Evaluate adopting `GifPreviewCard` (or a thin wrapper) for the layer video preview to determine if the responsive chrome can be unified or if a specialized scaffold is warranted.
+  - Identify any additional blend/log preview touchpoints that should migrate to `BlendControlsContent` to keep control presentation consistent.
+  - Keep tracking Android SDK provisioning so Gradle unit tests can run locally once tooling is available.

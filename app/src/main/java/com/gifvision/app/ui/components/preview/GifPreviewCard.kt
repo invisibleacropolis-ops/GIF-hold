@@ -22,6 +22,17 @@ import androidx.compose.ui.unit.dp
  * implementation handles common chrome (title, preview surface, action row, progress/status copy)
  * so feature-specific cards only provide their preview media + actions.
  */
+/**
+ * Controls where the preview surface should render relative to the action column inside
+ * [GifPreviewCard]. Layer blend cards historically place their preview beneath the controls
+ * while stream/master cards keep the preview at the top, so the enum makes the placement
+ * explicit while retaining a single scaffold implementation.
+ */
+enum class PreviewPlacement {
+    ABOVE_ACTIONS,
+    BELOW_ACTIONS
+}
+
 @Composable
 fun GifPreviewCard(
     title: String,
@@ -30,7 +41,8 @@ fun GifPreviewCard(
     modifier: Modifier = Modifier,
     isGenerating: Boolean = false,
     statusMessage: String? = null,
-    statusMessageColor: Color? = null
+    statusMessageColor: Color? = null,
+    previewPlacement: PreviewPlacement = PreviewPlacement.ABOVE_ACTIONS
 ) {
     ElevatedCard(modifier) {
         Column(
@@ -38,15 +50,27 @@ fun GifPreviewCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(text = title, style = MaterialTheme.typography.titleLarge)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f),
-                contentAlignment = Alignment.Center
-            ) {
-                previewContent()
+            val renderPreview: @Composable () -> Unit = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    previewContent()
+                }
             }
-            actions()
+            when (previewPlacement) {
+                PreviewPlacement.ABOVE_ACTIONS -> {
+                    renderPreview()
+                    actions()
+                }
+
+                PreviewPlacement.BELOW_ACTIONS -> {
+                    actions()
+                    renderPreview()
+                }
+            }
             if (isGenerating) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }

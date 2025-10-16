@@ -229,6 +229,48 @@ data class BlendControlsAvailability(
 )
 
 /**
+ * Shared column content that renders blend controls without owning a card wrapper. Both
+ * [BlendControlsCard] and feature-specific cards (e.g., layer blend preview) delegate to this
+ * helper so the dropdown, slider, and action rows remain visually and behaviourally consistent.
+ */
+@Composable
+fun ColumnScope.BlendControlsContent(
+    availability: BlendControlsAvailability,
+    mode: GifVisionBlendMode,
+    opacity: Float,
+    onModeChange: (GifVisionBlendMode) -> Unit,
+    onOpacityChange: (Float) -> Unit,
+    onGenerateBlend: () -> Unit,
+    generateLabel: String = "Generate Blended GIF",
+    opacitySupportingText: String = "0.00 hides Stream B · 1.00 fully overlays it",
+    infoContent: (@Composable ColumnScope.(BlendControlsAvailability) -> Unit)? = null,
+    actionContent: @Composable ColumnScope.(BlendControlsAvailability) -> Unit = {
+        GenerateBlendButton(
+            enabled = it.generateEnabled,
+            onGenerate = onGenerateBlend,
+            label = generateLabel
+        )
+    }
+) {
+    infoContent?.invoke(this, availability)
+
+    BlendModeDropdown(
+        mode = mode,
+        enabled = availability.controlsEnabled,
+        onModeSelected = onModeChange
+    )
+
+    BlendOpacitySlider(
+        opacity = opacity,
+        enabled = availability.controlsEnabled,
+        onOpacityChange = onOpacityChange,
+        supportingText = opacitySupportingText
+    )
+
+    actionContent(this, availability)
+}
+
+/**
  * Shared wrapper that combines the blend mode dropdown, opacity slider, and generate CTA into a
  * single elevated card. Layer and master screens can supply custom messaging, action rows, and
  * footer content while delegating progress chrome + enablement wiring to this component.
@@ -262,22 +304,18 @@ fun BlendControlsCard(
         ) {
             Text(text = title, style = MaterialTheme.typography.titleLarge)
 
-            infoContent?.invoke(this, availability)
-
-            BlendModeDropdown(
+            BlendControlsContent(
+                availability = availability,
                 mode = mode,
-                enabled = availability.controlsEnabled,
-                onModeSelected = onModeChange
-            )
-
-            BlendOpacitySlider(
                 opacity = opacity,
-                enabled = availability.controlsEnabled,
+                onModeChange = onModeChange,
                 onOpacityChange = onOpacityChange,
-                supportingText = opacitySupportingText
+                onGenerateBlend = onGenerateBlend,
+                generateLabel = generateLabel,
+                opacitySupportingText = opacitySupportingText,
+                infoContent = infoContent,
+                actionContent = actionContent
             )
-
-            actionContent(this, availability)
 
             if (availability.isGenerating) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())

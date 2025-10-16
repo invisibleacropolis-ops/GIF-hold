@@ -262,3 +262,26 @@
   - Evaluate adopting `GifPreviewCard` (or a thin wrapper) for the layer video preview to determine if the responsive chrome can be unified or if a specialized scaffold is warranted.
   - Identify any additional blend/log preview touchpoints that should migrate to `BlendControlsContent` to keep control presentation consistent.
   - Keep tracking Android SDK provisioning so Gradle unit tests can run locally once tooling is available.
+
+## Session 2025-10-23 - Start
+- Continuing Phase 3 preview consolidation with focus on migrating master share setup platform previews onto the shared `GifPreviewCard` scaffold.
+- Current completion estimates carried forward:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 65%
+  - Phase 4: 0%
+
+## Session 2025-10-23 - End
+- Updated `MasterShareSetupCard` platform previews to consume `GifPreviewCard`, eliminating the bespoke card implementation and aligning the share chrome with other preview surfaces while documenting the intent for outside contributors.
+- Added inline documentation describing how the shared scaffold organizes loop messaging and caption/hashtag status for each social platform preview.
+- Re-ran `./gradlew test --console=plain --stacktrace` (fails: missing Android SDK) to capture the consistent tooling gap after migrating the share previews.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 75% (share setup previews now ride on the shared scaffold; pending work includes evaluating layer video preview reuse and remaining share/setup chrome).
+  - Phase 4: 0%
+- TODOs for next session:
+  - Investigate whether `LayerVideoPreviewCard` can adopt `GifPreviewCard` or if an adapter helper is required to support the ExoPlayer transport controls.
+  - Review share setup caption/hashtag helper copy for potential extraction into `ui/resources` to keep messaging centralized ahead of Phase 4 documentation.
+  - Continue identifying any residual preview components (e.g., share setup action rows) that could leverage shared scaffolds without impacting behaviour.
+  - Maintain the outstanding action to provision the Android SDK so Gradle-based tests can complete locally.

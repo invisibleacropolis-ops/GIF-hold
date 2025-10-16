@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -16,7 +14,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gifvision.app.ui.components.preview.GifPreviewCard
 import com.gifvision.app.ui.state.GifLoopMetadata
 import com.gifvision.app.ui.state.PlatformPreview
 import com.gifvision.app.ui.state.ShareSetupState
@@ -95,22 +95,25 @@ internal fun MasterShareSetupCard(
     }
 }
 
+/**
+ * Renders a per-platform share preview using the shared [GifPreviewCard] scaffold so that the
+ * social preview chrome matches the stream and blend preview surfaces. The preview surface hosts
+ * the loop message while the action column summarizes caption, character, and hashtag status.
+ */
 @Composable
 private fun PlatformPreviewCard(preview: PlatformPreview) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(text = preview.platform.displayName, style = MaterialTheme.typography.titleMedium)
+    GifPreviewCard(
+        title = preview.platform.displayName,
+        previewContent = {
             Text(
                 text = preview.loopMessage,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
+        },
+        actions = {
             HorizontalDivider()
             if (preview.renderedCaption.isBlank()) {
                 Text(
@@ -152,5 +155,5 @@ private fun PlatformPreviewCard(preview: PlatformPreview) {
                 color = if (preview.overflowHashtags > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
+    )
 }

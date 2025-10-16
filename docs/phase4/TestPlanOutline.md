@@ -28,3 +28,10 @@
 - Capture expected Gradle command (`./gradlew testDebugUnitTest`) and known environment caveats.
 - Outline CI follow-ups: integrate tests into pipeline after SDK provisioning, monitor for flaky behavior.
 - Add guidance for contributors on expanding coverage as new shared utilities appear.
+
+## Progress Log (2025-10-26)
+- ✅ Added JVM coverage for validation helpers via `ValidationRulesTest`, exercising stream/layer/master pathways.
+- ✅ Implemented coordinator tests: `RenderSchedulerTest`, `ShareCoordinatorTest`, `MessageCenterTest`, and new `ClipImporterTest` (reset behaviour) with deterministic fakes.
+- ✅ Authored `LogPanelStateTest` to validate log buffer formatting helpers outside of Compose runtime.
+- ⏳ Pending: isolated tests for clipboard/share side-effects in `LogPanelState` (requires instrumentation or Robolectric harness).
+- ⏳ Pending: enablement matrix checks for blend controls (`BlendControlsAvailabilityTest`) once UI wiring is further abstracted for unit coverage.

@@ -109,15 +109,21 @@ internal class ShareCoordinator(
     }
 
     private fun deriveDisplayName(path: String): String {
-        val parsed = Uri.parse(path)
-        val lastSegment = parsed.lastPathSegment?.substringAfterLast('/') ?: ""
-        val fileCandidate = File(path).takeIf { it.nameWithoutExtension.isNotBlank() }?.nameWithoutExtension
+        val fileCandidate = File(path)
+            .takeIf { it.nameWithoutExtension.isNotBlank() }
+            ?.nameWithoutExtension
+        val lastSegment = path.substringAfterLast('/', missingDelimiterValue = "")
         val raw = when {
             fileCandidate != null -> fileCandidate
             lastSegment.isNotBlank() -> lastSegment.substringBefore('.')
             else -> null
         }
-        return sanitizeDisplayName(raw).ifBlank { DEFAULT_MASTER_NAME }
+        val sanitized = sanitizeDisplayName(raw)
+        return if (sanitized.isBlank() || sanitized == GENERIC_MASTER_TOKEN) {
+            DEFAULT_MASTER_NAME
+        } else {
+            sanitized
+        }
     }
 
     private fun buildStreamDisplayName(layerTitle: String, stream: StreamSelection): String {
@@ -129,11 +135,16 @@ internal class ShareCoordinator(
     private fun sanitizeDisplayName(raw: String?): String {
         val candidate = raw?.trim().orEmpty()
         if (candidate.isEmpty()) return ""
-        return candidate.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        return candidate
+            .replace(Regex("[^A-Za-z0-9_-]+"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+            .lowercase(Locale.US)
     }
 
     private companion object {
         const val DEFAULT_MASTER_NAME = "gifvision_master"
+        const val GENERIC_MASTER_TOKEN = "master"
     }
 }
 

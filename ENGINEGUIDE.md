@@ -266,6 +266,7 @@ The view-model defaults to `ScopedStorageMediaRepository` but can swap to `InMem
 * `ShareResult` surfaces success or failure.
 * `AndroidShareRepository` transforms filesystem paths into `content://` URIs via `FileProvider`, composes share text from caption/hashtags/loop metadata, grants URI permissions to all resolved targets, and launches a chooser intent.
 * `LoggingShareRepository` is available for tests and previews where actual intents are undesirable.
+* `ShareCoordinator` sanitizes export display names by collapsing invalid characters/whitespace and falls back to `gifvision_master` for ambiguous master outputs, keeping repository exports deterministic. Companion unit tests assert the sanitized naming contract.
 
 `GifVisionViewModel.shareMasterOutput()` orchestrates the share flow, preventing duplicate launches (`isPreparingShare`) and relaying completion status through `UiMessage`s.
 
@@ -317,7 +318,7 @@ Unit coverage now exercises the extracted helpers introduced in earlier phases:
 
 * `ValidationRulesTest` verifies stream, layer, and master validation logic, keeping `ValidationRules.kt` trustworthy as the single source of enablement truth.
 * `RenderSchedulerTest` drives the coordinator with fakes to assert job ID wiring, persistence interactions, and log lifecycle events without launching FFmpeg.
-* `ShareCoordinatorTest` and `MessageCenterTest` cover share/export flows plus toast deduplication, demonstrating how to exercise coroutine-driven helpers deterministically.
+* `ShareCoordinatorTest` and `MessageCenterTest` cover share/export flows plus toast deduplication; the share coverage asserts sanitized display names and master blend fallbacks so repository exports remain predictable.
 * `ClipImporterTest` focuses on the reset pathway to confirm that stream/blend state clearing stays consistent even without Android content resolver access.
 * `LogPanelStateTest` validates log buffer formatting helpers (`toDisplayString`, `toLogTimestamp`, and `refresh`) and the copy/share flows via injectable `LogPanelSideEffects` doubles, enabling JVM verification of toast messaging and share error handling.
 * `BlendControlsAvailabilityTest` verifies layer/master blend enablement gating and associated action toggles using the extracted availability helpers.

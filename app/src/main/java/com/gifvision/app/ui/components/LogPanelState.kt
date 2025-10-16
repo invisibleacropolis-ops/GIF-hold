@@ -2,7 +2,6 @@ package com.gifvision.app.ui.components
 
 import android.content.Context
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -28,9 +27,8 @@ import java.util.Locale
  */
 @Stable
 class LogPanelState internal constructor(
-    private val clipboardManager: ClipboardManager,
-    private val context: Context,
-    val listState: LazyListState
+    val listState: LazyListState,
+    private val sideEffects: LogPanelSideEffects
 ) {
     /** Indicates whether any log entries have been recorded. */
     var hasLogs: Boolean by mutableStateOf(false)
@@ -54,11 +52,11 @@ class LogPanelState internal constructor(
         successMessage: String = DEFAULT_COPY_SUCCESS_MESSAGE
     ) {
         if (!hasLogs) {
-            showToast(emptyMessage)
+            sideEffects.showToast(emptyMessage)
             return
         }
-        clipboardManager.setText(AnnotatedString(formattedPayload))
-        showToast(successMessage)
+        sideEffects.copyToClipboard(formattedPayload)
+        sideEffects.showToast(successMessage)
     }
 
     fun shareLogs(
@@ -68,24 +66,17 @@ class LogPanelState internal constructor(
         noHandlerMessage: String = DEFAULT_SHARE_NO_HANDLER_MESSAGE
     ) {
         if (!hasLogs) {
-            showToast(emptyMessage)
+            sideEffects.showToast(emptyMessage)
             return
         }
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, formattedPayload)
-            putExtra(Intent.EXTRA_SUBJECT, subject)
+        val result = sideEffects.sharePayload(
+            payload = formattedPayload,
+            chooserTitle = chooserTitle,
+            subject = subject
+        )
+        result.onFailure {
+            sideEffects.showToast(noHandlerMessage)
         }
-        runCatching {
-            val chooser = Intent.createChooser(intent, chooserTitle)
-            context.startActivity(chooser)
-        }.onFailure {
-            showToast(noHandlerMessage)
-        }
-    }
-
-    private fun showToast(message: String) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     companion object {
@@ -105,11 +96,17 @@ fun rememberLogPanelState(logs: List<LogEntry>): LogPanelState {
     val context = LocalContext.current
     val listState = rememberLazyListState()
 
-    val state = remember(clipboardManager, context, listState) {
-        LogPanelState(
+    val sideEffects = remember(clipboardManager, context) {
+        AndroidLogPanelSideEffects(
             clipboardManager = clipboardManager,
-            context = context,
-            listState = listState
+            context = context
+        )
+    }
+
+    val state = remember(listState, sideEffects) {
+        LogPanelState(
+            listState = listState,
+            sideEffects = sideEffects
         )
     }
 
@@ -131,4 +128,45 @@ internal fun LogEntry.toDisplayString(): String {
 internal fun Long.toLogTimestamp(): String {
     val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     return formatter.format(Date(this))
+}
+
+internal interface LogPanelSideEffects {
+    fun copyToClipboard(payload: String)
+    fun sharePayload(
+        payload: String,
+        chooserTitle: String,
+        subject: String
+    ): Result<Unit>
+
+    fun showToast(message: String)
+}
+
+private class AndroidLogPanelSideEffects(
+    private val clipboardManager: ClipboardManager,
+    private val context: Context
+) : LogPanelSideEffects {
+
+    override fun copyToClipboard(payload: String) {
+        clipboardManager.setText(AnnotatedString(payload))
+    }
+
+    override fun sharePayload(
+        payload: String,
+        chooserTitle: String,
+        subject: String
+    ): Result<Unit> {
+        return runCatching {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, payload)
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+            }
+            val chooser = Intent.createChooser(intent, chooserTitle)
+            context.startActivity(chooser)
+        }
+    }
+
+    override fun showToast(message: String) {
+        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+    }
 }

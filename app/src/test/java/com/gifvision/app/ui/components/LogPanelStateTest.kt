@@ -1,10 +1,5 @@
 package com.gifvision.app.ui.components
 
-import android.content.Context
-import android.content.ContextWrapper
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import com.gifvision.app.ui.state.LogEntry
 import com.gifvision.app.ui.state.LogSeverity
 import java.util.Locale
@@ -37,11 +32,10 @@ class LogPanelStateTest {
 
     @Test
     fun refresh_tracksBufferAndFormatsPayload() {
-        val clipboard = RecordingClipboardManager()
+        val sideEffects = RecordingLogPanelSideEffects()
         val state = LogPanelState(
-            clipboardManager = clipboard,
-            context = SilentContext(),
-            listState = LazyListState()
+            listState = androidx.compose.foundation.lazy.LazyListState(),
+            sideEffects = sideEffects
         )
 
         state.refresh(emptyList())
@@ -79,17 +73,128 @@ class LogPanelStateTest {
         assertEquals("23:59:59", timestamp.toLogTimestamp())
     }
 
-    private class RecordingClipboardManager : ClipboardManager {
-        var recordedText: AnnotatedString? = null
+    @Test
+    fun copyLogs_withoutPayload_notifiesEmptyToast() {
+        val sideEffects = RecordingLogPanelSideEffects()
+        val state = LogPanelState(
+            listState = androidx.compose.foundation.lazy.LazyListState(),
+            sideEffects = sideEffects
+        )
 
-        override fun setText(annotatedString: AnnotatedString) {
-            recordedText = annotatedString
-        }
+        state.copyLogs(emptyMessage = "Nothing")
 
-        override fun getText(): AnnotatedString? = recordedText
+        assertEquals(listOf("Nothing"), sideEffects.recordedToasts)
+        assertTrue(sideEffects.copiedPayloads.isEmpty())
     }
 
-    private class SilentContext : ContextWrapper(null) {
-        override fun getApplicationContext(): Context = this
+    @Test
+    fun copyLogs_withPayload_copiesAndShowsSuccess() {
+        val sideEffects = RecordingLogPanelSideEffects()
+        val state = LogPanelState(
+            listState = androidx.compose.foundation.lazy.LazyListState(),
+            sideEffects = sideEffects
+        )
+
+        val logs = listOf(
+            LogEntry(message = "Stream render queued", severity = LogSeverity.Info, timestampMillis = 1_000L)
+        )
+        state.refresh(logs)
+
+        state.copyLogs(successMessage = "Copied")
+
+        assertEquals(listOf("Copied"), sideEffects.recordedToasts)
+        assertEquals(listOf("[00:00:01] Info: Stream render queued"), sideEffects.copiedPayloads)
+    }
+
+    @Test
+    fun shareLogs_withoutPayload_notifiesEmptyToast() {
+        val sideEffects = RecordingLogPanelSideEffects()
+        val state = LogPanelState(
+            listState = androidx.compose.foundation.lazy.LazyListState(),
+            sideEffects = sideEffects
+        )
+
+        state.shareLogs(emptyMessage = "Empty")
+
+        assertEquals(listOf("Empty"), sideEffects.recordedToasts)
+        assertTrue(sideEffects.shareRequests.isEmpty())
+    }
+
+    @Test
+    fun shareLogs_withPayload_invokesShare() {
+        val sideEffects = RecordingLogPanelSideEffects()
+        val state = LogPanelState(
+            listState = androidx.compose.foundation.lazy.LazyListState(),
+            sideEffects = sideEffects
+        )
+
+        val logs = listOf(
+            LogEntry(message = "Blend finished", severity = LogSeverity.Info, timestampMillis = 2_000L)
+        )
+        state.refresh(logs)
+
+        state.shareLogs(chooserTitle = "Chooser", subject = "Subject")
+
+        assertTrue(sideEffects.recordedToasts.isEmpty())
+        assertEquals(
+            listOf(
+                RecordingLogPanelSideEffects.ShareRequest(
+                    payload = "[00:00:02] Info: Blend finished",
+                    chooserTitle = "Chooser",
+                    subject = "Subject"
+                )
+            ),
+            sideEffects.shareRequests
+        )
+    }
+
+    @Test
+    fun shareLogs_failure_showsNoHandlerToast() {
+        val sideEffects = RecordingLogPanelSideEffects().apply {
+            shareResult = Result.failure(IllegalStateException("no handler"))
+        }
+        val state = LogPanelState(
+            listState = androidx.compose.foundation.lazy.LazyListState(),
+            sideEffects = sideEffects
+        )
+
+        val logs = listOf(
+            LogEntry(message = "Blend finished", severity = LogSeverity.Info, timestampMillis = 2_000L)
+        )
+        state.refresh(logs)
+
+        state.shareLogs(noHandlerMessage = "Missing")
+
+        assertEquals(listOf("Missing"), sideEffects.recordedToasts)
+    }
+
+    private class RecordingLogPanelSideEffects : LogPanelSideEffects {
+        val copiedPayloads = mutableListOf<String>()
+        val shareRequests = mutableListOf<ShareRequest>()
+        val recordedToasts = mutableListOf<String>()
+        var shareResult: Result<Unit> = Result.success(Unit)
+
+        override fun copyToClipboard(payload: String) {
+            copiedPayloads += payload
+        }
+
+        override fun sharePayload(
+            payload: String,
+            chooserTitle: String,
+            subject: String
+        ): Result<Unit> {
+            shareRequests += ShareRequest(payload, chooserTitle, subject)
+            return shareResult
+        }
+
+        override fun showToast(message: String) {
+            recordedToasts += message
+        }
+
+        data class ShareRequest(
+            val payload: String,
+            val chooserTitle: String,
+            val subject: String
+        )
     }
 }

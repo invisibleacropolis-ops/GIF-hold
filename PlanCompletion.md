@@ -285,3 +285,25 @@
   - Review share setup caption/hashtag helper copy for potential extraction into `ui/resources` to keep messaging centralized ahead of Phase 4 documentation.
   - Continue identifying any residual preview components (e.g., share setup action rows) that could leverage shared scaffolds without impacting behaviour.
   - Maintain the outstanding action to provision the Android SDK so Gradle-based tests can complete locally.
+
+## Session 2025-10-24 - Start
+- Driving Phase 3 to completion by auditing remaining preview components for shared scaffold adoption and preparing documentation workstreams.
+- Current completion estimates carried forward:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 75%
+  - Phase 4: 0%
+
+## Session 2025-10-24 - End
+- Refactored the layer video preview card to delegate to the shared `GifPreviewCard`, aligning transport controls and preview chrome with other reusable surfaces without altering playback behaviour.
+- Authored detailed outlines for the upcoming Phase 4 documentation and test suites (`docs/phase4/ENGINEGUIDE-outline.md`, `docs/phase4/TestPlanOutline.md`) to guide implementation for outside engineers.
+- Executed `./gradlew test --console=plain` (fails: missing Android SDK), maintaining visibility into the persistent environment blocker ahead of Phase 4 testing work.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 100%
+  - Phase 4: 10% (outlines drafted for documentation and testing deliverables)
+- TODOs for next session:
+  - Implement the outlined validation and coordinator unit tests once the Android SDK/tooling prerequisite is addressed.
+  - Update `ENGINEGUIDE.md` per the prepared outline to document the consolidated UI components and coordinator architecture.
+  - Continue monitoring the Android SDK setup so Gradle unit tests can execute successfully.

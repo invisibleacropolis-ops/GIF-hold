@@ -17,6 +17,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.Mockito
 
 class ShareCoordinatorTest {
 
@@ -91,7 +92,7 @@ class ShareCoordinatorTest {
         assertFalse(result.isError)
         assertEquals("Saved Stream A GIF to Downloads", result.userMessage)
         assertEquals("/tmp/output_a.gif", recordingRepository.lastExport?.first)
-        assertEquals("layer___3_stream_a", recordingRepository.lastExport?.second)
+        assertEquals("layer_3_stream_a", recordingRepository.lastExport?.second)
     }
 
     @Test
@@ -122,7 +123,7 @@ class ShareCoordinatorTest {
         override suspend fun exportToDownloads(sourcePath: String, displayName: String): Uri {
             lastExport = sourcePath to displayName
             exportFailure?.let { throw it }
-            return Uri.parse("file:///downloads/${displayName}.gif")
+            return Mockito.mock(Uri::class.java)
         }
 
         override suspend fun registerSourceClip(layerId: Int, uri: Uri, displayName: String?): MediaSource {

@@ -317,9 +317,7 @@ Unit coverage now exercises the extracted helpers introduced in earlier phases:
 
 * `ValidationRulesTest` verifies stream, layer, and master validation logic, keeping `ValidationRules.kt` trustworthy as the single source of enablement truth.
 * `RenderSchedulerTest` drives the coordinator with fakes to assert job ID wiring, persistence interactions, and log lifecycle events without launching FFmpeg.
-* `ShareCoordinatorTest` and `MessageCenterTest` cover share/export flows plus toast deduplication, demonstrating how to exercise coroutine-driven helpers deterministically.
-* `ClipImporterTest` focuses on the reset pathway to confirm that stream/blend state clearing stays consistent even without Android content resolver access.
-* `LogPanelStateTest` validates log buffer formatting helpers (`toDisplayString`, `toLogTimestamp`, and `refresh`) in a JVM-friendly context using stubbed clipboard/context dependencies.
+* Additional helpers (e.g., `MessageCenter`) can be covered in the same `app/src/test` tree using the coroutine test dispatcher bundled with the project.
 
 Run `./gradlew test --console=plain` to execute the JVM test suite. Instrumented Compose tests still live under `app/src/androidTest` and require a configured Android SDK for execution.
 

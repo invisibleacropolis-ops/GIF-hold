@@ -27,9 +27,9 @@ internal fun BlendPreviewCard(
     val streamAReady = !layerState.streamA.generatedGifPath.isNullOrBlank()
     val streamBReady = !layerState.streamB.generatedGifPath.isNullOrBlank()
     val isGenerating = layerState.blendState.isGenerating
-    val availability = BlendControlsAvailability(
-        controlsEnabled = streamAReady && streamBReady && !isGenerating,
-        generateEnabled = (streamAReady || streamBReady) && !isGenerating,
+    val availability = layerBlendControlsAvailability(
+        streamAReady = streamAReady,
+        streamBReady = streamBReady,
         isGenerating = isGenerating
     )
 
@@ -71,5 +71,25 @@ internal fun BlendPreviewCard(
         },
         isGenerating = availability.isGenerating,
         previewPlacement = PreviewPlacement.BELOW_ACTIONS
+    )
+}
+
+internal fun layerBlendControlsAvailability(layer: Layer): BlendControlsAvailability {
+    return layerBlendControlsAvailability(
+        streamAReady = !layer.streamA.generatedGifPath.isNullOrBlank(),
+        streamBReady = !layer.streamB.generatedGifPath.isNullOrBlank(),
+        isGenerating = layer.blendState.isGenerating
+    )
+}
+
+internal fun layerBlendControlsAvailability(
+    streamAReady: Boolean,
+    streamBReady: Boolean,
+    isGenerating: Boolean
+): BlendControlsAvailability {
+    return BlendControlsAvailability(
+        controlsEnabled = streamAReady && streamBReady && !isGenerating,
+        generateEnabled = (streamAReady || streamBReady) && !isGenerating,
+        isGenerating = isGenerating
     )
 }

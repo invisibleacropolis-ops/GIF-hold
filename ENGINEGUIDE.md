@@ -320,6 +320,7 @@ Unit coverage now exercises the extracted helpers introduced in earlier phases:
 * `ShareCoordinatorTest` and `MessageCenterTest` cover share/export flows plus toast deduplication, demonstrating how to exercise coroutine-driven helpers deterministically.
 * `ClipImporterTest` focuses on the reset pathway to confirm that stream/blend state clearing stays consistent even without Android content resolver access.
 * `LogPanelStateTest` validates log buffer formatting helpers (`toDisplayString`, `toLogTimestamp`, and `refresh`) in a JVM-friendly context using stubbed clipboard/context dependencies.
+* `BlendControlsAvailabilityTest` verifies layer/master blend enablement gating and associated action toggles using the extracted availability helpers.
 
 Run `./gradlew test --console=plain` to execute the JVM test suite. Instrumented Compose tests still live under `app/src/androidTest` and require a configured Android SDK for execution.
 

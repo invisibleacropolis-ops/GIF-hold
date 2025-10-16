@@ -351,3 +351,25 @@
   - Explore unit coverage for blend control enablement logic or introduce adapter helpers to make it testable.
   - Investigate test harness options (e.g., Robolectric) for exercising `LogPanelState` copy/share side-effects once Android SDK access is available.
   - Continue tracking the Android SDK provisioning need so the JVM/unit tests can execute successfully in a configured environment.
+
+## Session 2025-10-27 - Start
+- Advancing Phase 4 by extracting blend enablement helpers and codifying their regression tests per the outstanding TODOs.
+- Current completion estimates carried forward:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 100%
+  - Phase 4: 80%
+
+## Session 2025-10-27 - End
+- Extracted layer and master blend enablement helpers, updating the respective composables to delegate enablement logic through shared contracts.
+- Added `BlendControlsAvailabilityTest` to lock in the new helper behaviour alongside master save/share action toggles.
+- Documented the new coverage in `ENGINEGUIDE.md` and advanced the Phase 4 progress log within `docs/phase4/TestPlanOutline.md`.
+- Ran `./gradlew test --console=plain` (fails: missing Android SDK) to record the unchanged environment constraint after introducing the new tests.
+- Updated completion estimates:
+  - Phase 1: 100%
+  - Phase 2: 100%
+  - Phase 3: 100%
+  - Phase 4: 90% (blend enablement coverage complete; outstanding work limited to clipboard/share side-effect instrumentation)
+- TODOs for next session:
+  - Pursue test coverage for clipboard/share side-effects in `LogPanelState` once an Android SDK or Robolectric harness is available.
+  - Monitor Android SDK provisioning so the expanded JVM test suite can execute successfully.

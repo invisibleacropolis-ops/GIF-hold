@@ -29,14 +29,11 @@ internal fun MasterControlsCard(
     onSaveMasterBlend: () -> Unit,
     onShareMasterBlend: () -> Unit
 ) {
-    val availability = BlendControlsAvailability(
-        controlsEnabled = state.isEnabled && !state.isGenerating,
-        generateEnabled = state.isEnabled && !state.isGenerating,
-        isGenerating = state.isGenerating
-    )
-    val saveEnabled = state.masterGifPath != null && !state.isGenerating
-    val shareEnabled = state.masterGifPath != null && !state.isGenerating && !state.shareSetup.isPreparingShare
-    val generateLabel = if (state.masterGifPath == null) "Generate Master Blend" else "Regenerate Master Blend"
+    val availabilitySnapshot = masterBlendAvailability(state)
+    val availability = availabilitySnapshot.controls
+    val saveEnabled = availabilitySnapshot.saveEnabled
+    val shareEnabled = availabilitySnapshot.shareEnabled
+    val generateLabel = availabilitySnapshot.generateLabel
     val masterOpacitySupportingText = "0.00 shows only Layer 1 Blend · 1.00 fully overlays Layer 2 Blend"
 
     BlendControlsCard(
@@ -105,5 +102,30 @@ internal fun MasterControlsCard(
                 }
             }
         }
+    )
+}
+
+internal data class MasterBlendAvailability(
+    val controls: BlendControlsAvailability,
+    val saveEnabled: Boolean,
+    val shareEnabled: Boolean,
+    val generateLabel: String
+)
+
+internal fun masterBlendAvailability(state: MasterBlendConfig): MasterBlendAvailability {
+    val controls = BlendControlsAvailability(
+        controlsEnabled = state.isEnabled && !state.isGenerating,
+        generateEnabled = state.isEnabled && !state.isGenerating,
+        isGenerating = state.isGenerating
+    )
+    val hasOutput = state.masterGifPath != null
+    val saveEnabled = hasOutput && !state.isGenerating
+    val shareEnabled = hasOutput && !state.isGenerating && !state.shareSetup.isPreparingShare
+    val generateLabel = if (hasOutput) "Regenerate Master Blend" else "Generate Master Blend"
+    return MasterBlendAvailability(
+        controls = controls,
+        saveEnabled = saveEnabled,
+        shareEnabled = shareEnabled,
+        generateLabel = generateLabel
     )
 }

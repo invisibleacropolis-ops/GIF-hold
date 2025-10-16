@@ -35,3 +35,7 @@
 - ✅ Authored `LogPanelStateTest` to validate log buffer formatting helpers outside of Compose runtime.
 - ⏳ Pending: isolated tests for clipboard/share side-effects in `LogPanelState` (requires instrumentation or Robolectric harness).
 - ⏳ Pending: enablement matrix checks for blend controls (`BlendControlsAvailabilityTest`) once UI wiring is further abstracted for unit coverage.
+
+## Progress Log (2025-10-27)
+- ✅ Extracted layer/master blend enablement helpers and covered them with `BlendControlsAvailabilityTest` (controls + action enablement regressions).
+- ⏳ Pending: Compose-driven clipboard/share side-effect coverage for `LogPanelState` (blocked on Android SDK/instrumentation).

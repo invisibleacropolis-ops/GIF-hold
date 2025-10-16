@@ -4,8 +4,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import com.gifvision.app.ui.components.BlendControlsAvailability
-import com.gifvision.app.ui.components.BlendControlsCard
+import com.gifvision.app.ui.components.BlendControlsContent
 import com.gifvision.app.ui.components.BlendPreviewThumbnail
+import com.gifvision.app.ui.components.preview.GifPreviewCard
+import com.gifvision.app.ui.components.preview.PreviewPlacement
 import com.gifvision.app.ui.resources.LayerCopy
 import com.gifvision.app.ui.state.GifVisionBlendMode
 import com.gifvision.app.ui.state.Layer
@@ -31,37 +33,43 @@ internal fun BlendPreviewCard(
         isGenerating = isGenerating
     )
 
-    BlendControlsCard(
+    GifPreviewCard(
         title = LayerCopy.BLEND_PREVIEW_TITLE,
-        availability = availability,
-        mode = layerState.blendState.mode,
-        opacity = layerState.blendState.opacity,
-        onModeChange = onBlendModeChange,
-        onOpacityChange = onBlendOpacityChange,
-        onGenerateBlend = onGenerateBlend,
-        infoContent = {
-            when {
-                streamAReady && streamBReady -> Unit
-                streamAReady || streamBReady -> {
-                    val readyStream = if (streamAReady) "Stream A" else "Stream B"
-                    Text(
-                        text = LayerCopy.singleStreamReady(readyStream),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                else -> {
-                    Text(
-                        text = LayerCopy.BLEND_REQUIREMENT_HINT,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        },
-        footerContent = {
+        previewContent = {
             BlendPreviewThumbnail(path = layerState.blendState.blendedGifPath)
-        }
+        },
+        actions = {
+            BlendControlsContent(
+                availability = availability,
+                mode = layerState.blendState.mode,
+                opacity = layerState.blendState.opacity,
+                onModeChange = onBlendModeChange,
+                onOpacityChange = onBlendOpacityChange,
+                onGenerateBlend = onGenerateBlend,
+                infoContent = {
+                    when {
+                        streamAReady && streamBReady -> Unit
+                        streamAReady || streamBReady -> {
+                            val readyStream = if (streamAReady) "Stream A" else "Stream B"
+                            Text(
+                                text = LayerCopy.singleStreamReady(readyStream),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        else -> {
+                            Text(
+                                text = LayerCopy.BLEND_REQUIREMENT_HINT,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            )
+        },
+        isGenerating = availability.isGenerating,
+        previewPlacement = PreviewPlacement.BELOW_ACTIONS
     )
 }

@@ -206,7 +206,7 @@ The top bar exposes both an icon button and a switch for toggling high contrast,
 * **Adjustments Card:** Uses tabbed content to surface sliders/switches for Quality & Size, Text Overlay, Color & Tone, and Experimental filters. Controls pull shared copy from `LayerCopy` and reuse `AdjustmentSlider`/`AdjustmentSwitch` for consistent semantics.
 * **Stream Preview Cards:** Leverage `GifPreviewCard` to present generated GIFs, combining progress state, regeneration buttons, and download actions across both streams via a single reusable scaffold.
 * **Blend Card:** Builds on `BlendControlsCard`/`BlendControlsContent`, consolidating dropdown, opacity slider, progress messaging, and `GifPreviewCard` placement options while validation decisions come from `ValidationRules`.
-* **FFmpeg Log Panel:** `FfmpegLogPanel` now pairs with `rememberLogPanelState`, centralizing auto-scroll, share, and clipboard behaviour so both the layer and master screens present identical controls.
+* **FFmpeg Log Panel:** `FfmpegLogPanel` now pairs with `rememberLogPanelState`, centralizing auto-scroll, share, and clipboard behaviour so both the layer and master screens present identical controls. `LogPanelState` delegates all copy/share/toast effects through `LogPanelSideEffects`, making Android plumbing swappable for test doubles.
 * **Responsive Layout:** `LayoutMetrics` dictate column groupings and gutter spacing, ensuring the layer surface aligns with master layouts on tablets, desktops, and compact handsets alike.
 
 ### 4.4. Master Blend Screen (`MasterBlendScreen`)
@@ -224,7 +224,7 @@ The `ui/components` package offers shared building blocks:
 * [`AdjustmentControls.kt`](app/src/main/java/com/gifvision/app/ui/components/AdjustmentControls.kt): `AdjustmentSlider`, `AdjustmentSwitch`, and `AdjustmentValidation` provide consistent styling, tooltip support, and validation messaging across adjustment tabs.
 * [`components/preview/GifPreviewCard.kt`](app/src/main/java/com/gifvision/app/ui/components/preview/GifPreviewCard.kt): Shared scaffold for stream, blend, and share previews. Accepts title, progress, primary/secondary actions, and `PreviewPlacement` to position media relative to controls.
 * [`BlendControlsCard.kt`](app/src/main/java/com/gifvision/app/ui/components/BlendControlsCard.kt) and `BlendControlsContent`: Consolidate blend dropdown, opacity slider, progress text, and action wiring so layer/master screens reuse identical affordances.
-* [`FfmpegLogPanel.kt`](app/src/main/java/com/gifvision/app/ui/components/FfmpegLogPanel.kt) with `rememberLogPanelState`: Renders scrollable log entries with severity badges, copy/share actions, auto-scroll toggles, and optional title/empty state messaging.
+* [`FfmpegLogPanel.kt`](app/src/main/java/com/gifvision/app/ui/components/FfmpegLogPanel.kt) with `rememberLogPanelState`: Renders scrollable log entries with severity badges, copy/share actions, auto-scroll toggles, and optional title/empty state messaging while routing copy/share/toast side effects through `LogPanelSideEffects`.
 
 Reuse these components when adding new controls to minimize styling drift and ensure accessibility support remains consistent.
 
@@ -319,7 +319,7 @@ Unit coverage now exercises the extracted helpers introduced in earlier phases:
 * `RenderSchedulerTest` drives the coordinator with fakes to assert job ID wiring, persistence interactions, and log lifecycle events without launching FFmpeg.
 * `ShareCoordinatorTest` and `MessageCenterTest` cover share/export flows plus toast deduplication, demonstrating how to exercise coroutine-driven helpers deterministically.
 * `ClipImporterTest` focuses on the reset pathway to confirm that stream/blend state clearing stays consistent even without Android content resolver access.
-* `LogPanelStateTest` validates log buffer formatting helpers (`toDisplayString`, `toLogTimestamp`, and `refresh`) in a JVM-friendly context using stubbed clipboard/context dependencies.
+* `LogPanelStateTest` validates log buffer formatting helpers (`toDisplayString`, `toLogTimestamp`, and `refresh`) and the copy/share flows via injectable `LogPanelSideEffects` doubles, enabling JVM verification of toast messaging and share error handling.
 * `BlendControlsAvailabilityTest` verifies layer/master blend enablement gating and associated action toggles using the extracted availability helpers.
 
 Run `./gradlew test --console=plain` to execute the JVM test suite. Instrumented Compose tests still live under `app/src/androidTest` and require a configured Android SDK for execution.

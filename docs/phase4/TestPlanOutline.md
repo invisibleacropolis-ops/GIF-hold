@@ -39,3 +39,7 @@
 ## Progress Log (2025-10-27)
 - ✅ Extracted layer/master blend enablement helpers and covered them with `BlendControlsAvailabilityTest` (controls + action enablement regressions).
 - ⏳ Pending: Compose-driven clipboard/share side-effect coverage for `LogPanelState` (blocked on Android SDK/instrumentation).
+
+## Progress Log (2025-10-28)
+- ✅ Extended `LogPanelStateTest` with injectable side-effect fakes to exercise clipboard copy, toast messaging, and share failure handling without Android instrumentation.
+- ⏳ Pending: Compose-driven clipboard/share side-effect coverage for `LogPanelState` (still requires Android SDK or Robolectric for UI-layer verification).
